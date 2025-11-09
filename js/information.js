@@ -69,7 +69,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentCity = initialCity; // 当前选中城市
     let currentDirection = 'normal'; // 'normal' 或 'reverse'
     let transferStations = []; // 存储换乘站信息
-    let currentTransferPopup = null; //弹窗信息
+    let currentTransferPopup = null; // 换乘站弹窗信息
+    let currentStationPopup = null; // 普通站点弹窗信息
+    let currentPopupStationInfo = null; // 当前弹窗的站点信息
 
     // 4. 线路颜色配置
     const lineColors = {
@@ -179,10 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const config = cityConfig[cityCode];
         
         // 关闭弹窗
-        if (currentTransferPopup) {
-            currentTransferPopup.remove();
-            currentTransferPopup = null;
-        }
+        closeAllPopups();
         
         map.flyTo({
             center: config.center,
@@ -286,6 +285,20 @@ document.addEventListener('DOMContentLoaded', function() {
     function getStopsForLine(lineName) {
         if (!stopData) return [];
         return stopData.filter(stop => stop.linename === lineName);
+    }
+
+    // 根据当前方向获取站点的显示序号
+    function getDisplayStationNum(lineName, stationNum) {
+        const lineStops = getStopsForLine(lineName);
+        const uniqueStops = new Set(lineStops.map(stop => stop.name));
+        const totalStations = uniqueStops.size;
+        
+        if (currentDirection === 'normal') {
+            return stationNum;
+        } else {
+            // 反向时，序号需要反转
+            return totalStations - stationNum + 1;
+        }
     }
 
     // 11. 显示单条线路
@@ -417,18 +430,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        let currentPopup = null;
-
         // 点击站点显示弹窗
         map.on('click', stopLayerId, (e) => {
             // 关闭之前的弹窗
-            if (currentPopup) {
-                currentPopup.remove();
-            }
-            if (currentTransferPopup) {
-                currentTransferPopup.remove();
-                currentTransferPopup = null;
-            }
+            closeAllPopups();
             
             const properties = e.features[0].properties;
             const station = stopData.find(stop => 
@@ -437,67 +442,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!station) return;
             
+            // 存储当前弹窗的站点信息
+            currentPopupStationInfo = {
+                name: station.name,
+                lineName: station.linename,
+                num: station.num,
+                coordinates: [station.lon, station.lat]
+            };
+            
             // 创建弹窗内容，使用与换乘站相同的样式
-            const popupContent = `
-                <div class="transfer-station-popup">
-                    <div class="popup-header">
-                        <h4>${properties.name}</h4>
-                        <button class="popup-close-btn" id="station-popup-close">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="popup-content">
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-info-circle"></i> 站点类型</div>
-                            <div class="popup-value">非换乘站</div>
-                        </div>
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-route"></i> 所属线路</div>
-                            <div class="transfer-lines">
-                                <span class="transfer-line-badge" style="border-left-color: ${lineColors[properties.lineName] || getRandomColor(properties.lineName)}">${properties.lineName}</span>
-                            </div>
-                        </div>
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-list-ol"></i> 站点序号</div>
-                            <div class="popup-value">第${properties.num}站</div>
-                        </div>
-                    </div>
-                    <div class="popup-footer">
-                        <button class="popup-action-btn" id="view-station-details">
-                            <i class="fas fa-search-location"></i> 查看站点详情
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            currentPopup = new mapboxgl.Popup({
-                closeOnClick: false,
-                closeButton: false,
-                maxWidth: '300px',
-                className: 'transfer-popup'
-            })
-                .setLngLat(e.lngLat)
-                .setHTML(popupContent)
-                .addTo(map);
-            
-            // 关闭按钮事件
-            document.getElementById('station-popup-close').addEventListener('click', () => {
-                if (currentPopup) {
-                    currentPopup.remove();
-                    currentPopup = null;
-                }
-            });
-            
-            // 查看详情按钮事件（修改！！！）
-            document.getElementById('view-station-details').addEventListener('click', () => {
-                // 关闭当前弹窗
-                if (currentPopup) {
-                    currentPopup.remove();
-                    currentPopup = null;
-                }
-                // 直接跳转到explorer.html
-                window.location.href = 'explorer.html';
-            });
+            createStationPopup(currentPopupStationInfo, e.lngLat, false);
         });
         
         // 鼠标悬停效果
@@ -509,6 +463,112 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         stopLayers.add({lineName, stopLayerId, labelLayerId});
+    }
+
+    // 创建站点弹窗（普通站点和换乘站共用）
+    function createStationPopup(stationInfo, lngLat, isTransfer) {
+        const displayNum = getDisplayStationNum(stationInfo.lineName, stationInfo.num);
+        const stationLines = isTransfer ? 
+            Array.from(new Set(stopData.filter(stop => stop.name === stationInfo.name).map(stop => stop.linename))) : 
+            [stationInfo.lineName];
+        
+        const popupContent = `
+            <div class="transfer-station-popup">
+                <div class="popup-header">
+                    <h4>${stationInfo.name}</h4>
+                    <button class="popup-close-btn" id="station-popup-close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="popup-content">
+                    <div class="popup-section">
+                        <div class="popup-label"><i class="fas fa-info-circle"></i> 站点类型</div>
+                        <div class="popup-value">${isTransfer ? '换乘站' : '非换乘站'}</div>
+                    </div>
+                    <div class="popup-section">
+                        <div class="popup-label"><i class="fas fa-subway"></i> ${isTransfer ? '可换乘线路' : '所属线路'}</div>
+                        <div class="transfer-lines">
+                            ${stationLines.map(line => 
+                                `<span class="transfer-line-badge" style="border-left-color: ${lineColors[line] || getRandomColor(line)}">${line}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    ${isTransfer ? `
+                    <div class="popup-section">
+                        <div class="popup-label"><i class="fas fa-route"></i> 当前线路</div>
+                        <div class="popup-value">${stationInfo.lineName}</div>
+                    </div>
+                    ` : ''}
+                    <div class="popup-section">
+                        <div class="popup-label"><i class="fas fa-list-ol"></i> 站点序号</div>
+                        <div class="popup-value" id="station-order-display">第${displayNum}站</div>
+                    </div>
+                </div>
+                <div class="popup-footer">
+                    <button class="popup-action-btn" id="view-station-details">
+                        <i class="fas fa-search-location"></i> 查看站点详情
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        const popup = new mapboxgl.Popup({
+            closeOnClick: false,
+            closeButton: false,
+            maxWidth: '300px',
+            className: 'transfer-popup'
+        })
+            .setLngLat(lngLat)
+            .setHTML(popupContent)
+            .addTo(map);
+        
+        // 存储弹窗引用
+        if (isTransfer) {
+            currentTransferPopup = popup;
+        } else {
+            currentStationPopup = popup;
+        }
+        
+        // 关闭按钮事件
+        document.getElementById('station-popup-close').addEventListener('click', () => {
+            closeAllPopups();
+        });
+        
+        // 查看详情按钮事件
+        document.getElementById('view-station-details').addEventListener('click', () => {
+            closeAllPopups();
+            // 直接跳转到explorer.html
+            window.location.href = 'explorer.html';
+        });
+        
+        return popup;
+    }
+
+    // 更新弹窗中的站点序号显示
+    function updatePopupStationOrder() {
+        if (!currentPopupStationInfo) return;
+        
+        const orderElement = document.getElementById('station-order-display');
+        if (orderElement) {
+            const displayNum = getDisplayStationNum(
+                currentPopupStationInfo.lineName, 
+                currentPopupStationInfo.num
+            );
+            orderElement.textContent = `第${displayNum}站`;
+        }
+    }
+
+    // 关闭所有弹窗
+    function closeAllPopups() {
+        if (currentTransferPopup) {
+            currentTransferPopup.remove();
+            currentTransferPopup = null;
+        }
+        if (currentStationPopup) {
+            currentStationPopup.remove();
+            currentStationPopup = null;
+        }
+        currentPopupStationInfo = null;
     }
 
     // 13. 隐藏单条线路
@@ -542,10 +602,7 @@ document.addEventListener('DOMContentLoaded', function() {
         activeLines.delete(lineName);
         
         // 如果隐藏的线路是当前弹窗显示的线路，关闭弹窗
-        if (currentTransferPopup) {
-            currentTransferPopup.remove();
-            currentTransferPopup = null;
-        }
+        closeAllPopups();
         
         // 更新信息卡
         if (activeLines.size > 0) {
@@ -562,9 +619,16 @@ document.addEventListener('DOMContentLoaded', function() {
         // 方向切换按钮事件
         document.getElementById('toggle-direction').addEventListener('click', toggleDirection);
     }
+    
     // 切换方向
     function toggleDirection() {
         currentDirection = currentDirection === 'normal' ? 'reverse' : 'normal';
+        
+        // 如果当前有弹窗显示，直接更新弹窗内容
+        if (currentPopupStationInfo) {
+            updatePopupStationOrder();
+        }
+        
         if (activeLines.size > 0) {
             const currentLine = Array.from(activeLines)[0];
             updateLineInfo(currentLine);
@@ -695,10 +759,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 高亮显示换乘站
     function highlightTransferStation(stationName, currentLineName) {
         // 关闭之前可能存在的弹窗
-        if (currentTransferPopup) {
-            currentTransferPopup.remove();
-            currentTransferPopup = null;
-        }
+        closeAllPopups();
         
         // 找到该站点的坐标
         const station = stopData.find(stop => 
@@ -706,6 +767,14 @@ document.addEventListener('DOMContentLoaded', function() {
         );
         
         if (!station) return;
+        
+        // 存储当前弹窗的站点信息
+        currentPopupStationInfo = {
+            name: station.name,
+            lineName: station.linename,
+            num: station.num,
+            coordinates: [station.lon, station.lat]
+        };
         
         // 飞向该站点
         map.flyTo({
@@ -716,96 +785,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 显示站点信息弹窗
         setTimeout(() => {
-            // 获取该站点的所有线路
-            const stationLines = Array.from(new Set(
-                stopData.filter(stop => stop.name === stationName).map(stop => stop.linename)
-            ));
-            
-            // 创建弹窗内容
-            const popupContent = `
-                <div class="transfer-station-popup">
-                    <div class="popup-header">
-                        <h4>${stationName}</h4>
-                        <button class="popup-close-btn" id="transfer-popup-close">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="popup-content">
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-info-circle"></i> 站点类型</div>
-                            <div class="popup-value">换乘站</div>
-                        </div>
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-subway"></i> 可换乘线路</div>
-                            <div class="transfer-lines">
-                                ${stationLines.map(line => 
-                                    `<span class="transfer-line-badge" style="border-left-color: ${lineColors[line] || getRandomColor(line)}">${line}</span>`
-                                ).join('')}
-                            </div>
-                        </div>
-                        <div class="popup-section">
-                            <div class="popup-label"><i class="fas fa-route"></i> 当前线路</div>
-                            <div class="popup-value">${currentLineName}</div>
-                        </div>
-                    </div>
-                    <div class="popup-footer">
-                        <button class="popup-action-btn" id="view-station-details">
-                            <i class="fas fa-search-location"></i> 查看站点详情
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            currentTransferPopup = new mapboxgl.Popup({
-                closeOnClick: false, // 禁止点击地图其他位置关闭
-                closeButton: false,  // 不使用默认关闭按钮
-                maxWidth: '300px',
-                className: 'transfer-popup'
-            })
-                .setLngLat([station.lon, station.lat])
-                .setHTML(popupContent)
-                .addTo(map);
-            
-            // 添加关闭按钮事件
-            document.getElementById('transfer-popup-close').addEventListener('click', () => {
-                if (currentTransferPopup) {
-                    currentTransferPopup.remove();
-                    currentTransferPopup = null;
-                }
-            });
-            
-            // 添加查看详情按钮事件
-            document.getElementById('view-station-details').addEventListener('click', () => {
-                // 关闭当前弹窗
-                if (currentTransferPopup) {
-                    currentTransferPopup.remove();
-                    currentTransferPopup = null;
-                }
-                // 直接跳转到explorer.html
-                window.location.href = 'explorer.html';
-            });
-            
+            createStationPopup(currentPopupStationInfo, [station.lon, station.lat], true);
         }, 1000);
-    }
-    // 在切换城市或清除线路时也关闭弹窗
-    function clearAllLines() {
-        activeLines.forEach(lineName => {
-            hideLine(lineName);
-        });
-        
-        // 关闭弹窗
-        if (currentTransferPopup) {
-            currentTransferPopup.remove();
-            currentTransferPopup = null;
-        }
-        
-        const buttons = document.querySelectorAll('.line-btn');
-        buttons.forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        activeLines.clear();
-        resetLineInfo();
     }
 
     // 15. 重置线路信息
