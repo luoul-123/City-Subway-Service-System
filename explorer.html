@@ -2,18 +2,168 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>站点周边 - 城市地铁服务系统</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet'>
+    <link rel="stylesheet" href="./css/explorer.css">
 </head>
 <body>
+    <!-- 导航栏容器（复用nav.js） -->
     <div id="nav-container"></div>
 
-    <main style="padding: 20px; margin-top: 70px;"> 
-        <h1>站点周边</h1>
-        <p>阿巴阿巴</p>
+    <!-- 主内容区 -->
+    <main class="map-info-container">
+        <!-- 中间地图容器 -->
+        <div class="map-container">
+            <!-- 左侧悬浮面板 -->
+            <div class="left-floating-panel">
+                <!-- 城市切换区域 -->
+                <div class="city-switch-area">
+                    <div class="switch-label">
+                        <i class="fas fa-exchange-alt"></i> 切换城市
+                    </div>
+                    <div class="city-buttons">
+                        <button class="city-btn" data-city="bj">北京</button>
+                        <button class="city-btn active" data-city="nj">南京</button>
+                        <button class="city-btn" data-city="sh">上海</button>
+                        <button class="city-btn" data-city="wh">武汉</button>
+                    </div>
+                    <div class="current-city">当前城市：南京</div>
+                </div>
+
+                <!-- 搜索区域 -->
+                <div class="search-section">
+                    <div class="search-header">
+                        <i class="fas fa-search"></i>
+                        <input type="text" 
+                               id="station-search-input" 
+                               class="search-input" 
+                               placeholder="输入站点名称搜索">
+                    </div>
+                </div>
+
+                <!-- 图片区域 -->
+                <div class="image-area">
+                    <img src="./images/学则路.png" alt="学则路" class="city-image">
+                </div>
+
+                <!-- 站点信息卡片 - 优化版 -->
+                <div id="station-info-card" class="station-info-card" style="display: none;">
+                    <div class="station-icon-wrapper">
+                        <div class="station-icon">
+                            <i class="fas fa-subway"></i>
+                        </div>
+                    </div>
+                    <div class="station-info-content">
+                        <div class="station-name-wrapper">
+                            <h4 class="station-name" id="current-station-name">-</h4>
+                        </div>
+                        <div class="station-line-wrapper">
+                            <i class="fas fa-route station-line-icon"></i>
+                            <span class="station-line-label">所属线路：</span>
+                            <span class="station-line-badge" id="current-station-line">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 地图 -->
+            <div id="surroundings-map" class="map"></div>
+        </div>
+            
+
+        <!-- 右侧统计面板 -->
+        <div class="info-panel right-panel">
+            <!-- 邻域统计 -->
+            <div class="stats-card">
+                <h3 class="card-title">
+                    <i class="fas fa-chart-pie"></i>
+                    邻域统计
+                </h3>
+                
+                <div class="control-group">
+                    <label class="control-label">
+                        <i class="fas fa-circle-notch"></i>
+                        <span>缓冲区半径:</span>
+                        <span class="control-value" id="radius-value">300</span>
+                        <span>m</span>
+                    </label>
+                    <input type="range" 
+                           id="radius-slider" 
+                           class="slider" 
+                           min="100" 
+                           max="1000" 
+                           step="50" 
+                           value="300">
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="pie-chart" width="200" height="200"></canvas>
+                </div>
+
+                <div class="legend" id="chart-legend"></div>
+
+                <div class="total-poi">
+                    <div class="total-label">
+                        <i class="fas fa-map-marker-alt"></i>
+                        POI共计
+                    </div>
+                    <div class="total-value" id="total-poi">0</div>
+                </div>
+            </div>
+
+            <!-- 核密度分析 -->
+            <div class="analysis-card">
+                <h3 class="card-title">
+                    <i class="fas fa-fire"></i>
+                    核密度分析
+                </h3>
+                
+                <div class="control-group">
+                    <label class="control-label">
+                        <i class="fas fa-thermometer-half"></i>
+                        <span>热力强度:</span>
+                        <span class="control-value" id="heat-value">50</span>
+                        <span>%</span>
+                    </label>
+                    <input type="range" 
+                           id="heat-slider" 
+                           class="slider" 
+                           min="0" 
+                           max="100" 
+                           value="50">
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">
+                        <i class="fas fa-palette"></i>
+                        <span>默认配色</span>
+                    </label>
+                    <select id="color-scheme" class="form-control">
+                        <option value="heat">热力图-红蓝渐变</option>
+                        <option value="rainbow">热力图-彩虹渐变</option>
+                        <option value="mono">热力图-单色渐变</option>
+                    </select>
+                </div>
+
+                <button class="update-btn" id="update-display">
+                    <i class="fas fa-sync-alt"></i>
+                    更新显示
+                </button>
+            </div>
+        </div>
     </main>
 
-    <!-- 5. 引入导航脚本 -->
+    <!-- 加载提示 -->
+    <div id="loading" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner"></div>
+        <p>加载数据中...</p>
+    </div>
+
+    <!-- 脚本加载顺序很重要 -->
     <script src="./js/nav.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <script src="./js/explorer.js"></script>
 </body>
 </html>
