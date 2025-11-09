@@ -1,0 +1,183 @@
+<nav class="top-nav">
+    <!-- 左侧Logo区域 -->
+    <div class="logo">
+        <i class="fas fa-subway"></i>
+        <span>城市地铁服务系统</span>
+    </div>
+
+    <!-- 中间导航链接区域 -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-item" data-page="home">首页<br><span class="en">INDEX</span></a>
+        <a href="overview.html" class="nav-item" data-page="overview">路线总览<br><span class="en">OVERVIEW</span></a>
+        <a href="information.html" class="nav-item" data-page="information">线路详情<br><span
+                class="en">INFORMATION</span></a>
+        <a href="explorer.html" class="nav-item" data-page="explorer">站点周边<br><span class="en">EXPLORER</span></a>
+        <a href="planner.html" class="nav-item" data-page="planner">路线规划<br><span class="en">PLANNER</span></a>
+    </div>
+
+    <!-- 右侧图标区域 -->
+    <div class="nav-icons">
+        <a href="#" class="icon-item" title="分享">
+            <i class="fas fa-share-alt"></i>
+        </a>
+        <a href="#" class="icon-item music-toggle" id="musicToggle" title="关闭音乐">
+            <img src="./images/btn_music.png" alt="背景音乐" class="custom-icon" id="musicIcon">
+        </a>
+        <a href="login.html" class="icon-item" title="登录">
+            <i class="fas fa-user"></i>
+        </a>
+    </div>
+</nav>
+
+<!-- 背景音乐 -->
+<audio id="backgroundMusic" loop>
+    <source src="./images/塞壬唱片-MSR,Eagle Wei - 海愿.mp3" type="audio/mpeg">
+</audio>
+
+<style>
+    .top-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        height: 70px;
+        background-color: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 20px;
+        font-weight: bold;
+        color: #1a73e8;
+    }
+
+    .logo i {
+        font-size: 28px;
+    }
+
+    .nav-links {
+        display: flex;
+        gap: 35px;
+    }
+
+    .nav-item {
+        text-decoration: none;
+        color: #333;
+        font-size: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 15px 10px 15px 15px;
+        position: relative;
+        transition: color 0.3s ease;
+    }
+
+    .nav-item:hover {
+        color: #1a73e8;
+    }
+
+    .nav-item.active {
+        color: #1a73e8;
+        font-weight: bold;
+    }
+
+    .nav-item.active::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 20px;
+        bottom: 20px;
+        width: 3px;
+        background-color: #1a73e8;
+    }
+
+    .en {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+        transition: color 0.3s ease;
+    }
+
+    .nav-item:hover .en,
+    .nav-item.active .en {
+        color: #1a73e8;
+    }
+
+    .nav-icons {
+        display: flex;
+        gap: 25px;
+    }
+
+    .icon-item {
+        text-decoration: none;
+        color: #333;
+        font-size: 22px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+
+    .icon-item:hover {
+        color: #1a73e8;
+        background-color: #f0f7ff;
+    }
+
+    .custom-icon {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+        transition: filter 0.3s ease;
+    }
+
+    .music-toggle:hover .custom-icon {
+        filter: invert(45%) sepia(70%) saturate(300%) hue-rotate(180deg);
+    }
+
+    .custom-icon.music-off {
+        filter: opacity(0.6);
+    }
+
+    .icon-item {
+        position: relative;
+    }
+
+    .icon-item[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: -35px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+        z-index: 1000;
+        pointer-events: none;
+    }
+
+    .icon-item[title]:hover::before {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 5px solid transparent;
+        border-bottom-color: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        pointer-events: none;
+    }
+</style>
+
+<script src="./js/nav.js"></script>
