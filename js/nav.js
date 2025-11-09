@@ -22,6 +22,7 @@ function loadNavigation() {
 
             initMusicControl();     // 初始化音乐控制（支持状态保持）
             highlightCurrentPage();  // 高亮当前导航项
+            initShareModal();   // 初始化弹窗
         })
         .catch(error => {
             console.error('导航加载失败:', error);
@@ -157,5 +158,37 @@ function highlightCurrentPage() {
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => {
         item.classList.toggle('active', item.getAttribute('data-page') === pageId);
+    });
+}
+
+function initShareModal() {
+    const shareBtn = document.querySelector('.icon-item[title="分享"]');
+    const modal = document.getElementById('shareModal');
+    const closeBtn = document.getElementById('closeShareModal');
+    const overlay = modal.querySelector('.modal-overlay');
+
+    if (!shareBtn || !modal || !closeBtn || !overlay) return;
+
+    // 显示弹窗
+    shareBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; // 禁止背景滚动
+    });
+
+    // 关闭弹窗
+    const closeModal = () => {
+        modal.style.display = 'none';
+        document.body.style.overflow = ''; // 恢复背景滚动
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', closeModal);
+
+    // 按ESC键关闭弹窗
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeModal();
+        }
     });
 }
