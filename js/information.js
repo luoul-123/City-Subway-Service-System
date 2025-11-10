@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let transferStations = []; // 存储换乘站信息
     let currentPopup = null; // 统一的弹窗引用
     let currentPopupStationInfo = null; // 当前弹窗的站点信息
+    let lastActiveLine = null; // 跟踪最后选中的线路
 
     // 4. 线路颜色配置
     const lineColors = {
@@ -340,6 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         activeLines.add(lineName);
+        lastActiveLine = lineName;
         showStopsForLine(lineName);
         updateLineInfo(lineName);
         adjustMapView();
@@ -615,14 +617,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         activeLines.delete(lineName);
+
+         // 如果移除的是最后选中的线路，重新设置最后选中的线路
+        if (lastActiveLine === lineName) {
+            lastActiveLine = activeLines.size > 0 ? Array.from(activeLines).pop() : null;
+        }
         
         // 关闭弹窗
         closePopup();
         
-        // 更新信息卡
-        if (activeLines.size > 0) {
-            const firstLine = Array.from(activeLines)[0];
-            updateLineInfo(firstLine);
+        // 更新信息卡，使用最后选中的线路
+        if (lastActiveLine) {
+            updateLineInfo(lastActiveLine);
         } else {
             resetLineInfo();
         }
@@ -644,9 +650,8 @@ document.addEventListener('DOMContentLoaded', function() {
             updatePopupStationOrder();
         }
         
-        if (activeLines.size > 0) {
-            const currentLine = Array.from(activeLines)[0];
-            updateLineInfo(currentLine);
+        if (lastActiveLine) {
+            updateLineInfo(lastActiveLine);
         }
     }
 
@@ -830,26 +835,33 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         activeLines.clear();
+        lastActiveLine = null;
         resetLineInfo();
     }
 
-    // 17. 显示所有线路（保持原样）
+    // 17. 显示所有线路
     function showAllLines() {
         clearAllLines();
         
-        railwayData.features.forEach(feature => {
-            showLine(feature.properties.name);
+        railwayData.features.forEach((feature, index) => {  // 补充index参数
+            const lineName = feature.properties.name;  // 定义lineName变量
+            showLine(lineName);  // 使用定义的lineName
             
             const buttons = document.querySelectorAll('.line-btn');
             buttons.forEach(btn => {
-                if (btn.textContent === feature.properties.name) {
+                if (btn.textContent === lineName) {  // 使用lineName
                     btn.classList.add('active');
                 }
             });
+            
+            // 判断最后一条线路
+            if (index === railwayData.features.length - 1) {
+                lastActiveLine = lineName;  
+            }
         });
     }
 
-    // 18. 搜索线路（保持原样）
+    // 18. 搜索线路
     function searchAndShowLine(searchText) {
         if (!railwayData) {
             alert('数据尚未加载完成，请稍后重试');
@@ -880,6 +892,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         btn.classList.add('active');
                     }
                 });
+
+                // 将最后匹配的线路设为最后选中的线路
+                if (index === matchedLines.length - 1) {
+                    lastActiveLine = lineName;
+                }
             });
         } else {
             alert(`未找到线路：${searchText}\n请输入正确的线路名称`);
