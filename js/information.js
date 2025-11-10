@@ -69,8 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentCity = initialCity; // 当前选中城市
     let currentDirection = 'normal'; // 'normal' 或 'reverse'
     let transferStations = []; // 存储换乘站信息
-    let currentTransferPopup = null; // 换乘站弹窗信息
-    let currentStationPopup = null; // 普通站点弹窗信息
+    let currentPopup = null; // 统一的弹窗引用
     let currentPopupStationInfo = null; // 当前弹窗的站点信息
 
     // 4. 线路颜色配置
@@ -181,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const config = cityConfig[cityCode];
         
         // 关闭弹窗
-        closeAllPopups();
+        closePopup();
         
         map.flyTo({
             center: config.center,
@@ -433,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // 点击站点显示弹窗
         map.on('click', stopLayerId, (e) => {
             // 关闭之前的弹窗
-            closeAllPopups();
+            closePopup();
             
             const properties = e.features[0].properties;
             const station = stopData.find(stop => 
@@ -442,16 +441,20 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (!station) return;
             
+            // 判断是否为换乘站
+            const isTransferStation = isStationTransfer(station.name);
+            
             // 存储当前弹窗的站点信息
             currentPopupStationInfo = {
                 name: station.name,
                 lineName: station.linename,
                 num: station.num,
-                coordinates: [station.lon, station.lat]
+                coordinates: [station.lon, station.lat],
+                isTransfer: isTransferStation
             };
             
-            // 创建弹窗内容，使用与换乘站相同的样式
-            createStationPopup(currentPopupStationInfo, e.lngLat, false);
+            // 创建统一弹窗
+            createUnifiedStationPopup(currentPopupStationInfo, e.lngLat);
         });
         
         // 鼠标悬停效果
@@ -465,37 +468,48 @@ document.addEventListener('DOMContentLoaded', function() {
         stopLayers.add({lineName, stopLayerId, labelLayerId});
     }
 
-    // 创建站点弹窗（普通站点和换乘站共用）
-    function createStationPopup(stationInfo, lngLat, isTransfer) {
+    // 判断站点是否为换乘站
+    function isStationTransfer(stationName) {
+        if (!stopData) return false;
+        // 找出所有同名站点的线路
+        const stationLines = new Set(stopData.filter(stop => stop.name === stationName).map(stop => stop.linename));
+        return stationLines.size > 1;
+    }
+
+    // 创建统一的站点弹窗
+    function createUnifiedStationPopup(stationInfo, lngLat) {
         const displayNum = getDisplayStationNum(stationInfo.lineName, stationInfo.num);
-        const stationLines = isTransfer ? 
-            Array.from(new Set(stopData.filter(stop => stop.name === stationInfo.name).map(stop => stop.linename))) : 
-            [stationInfo.lineName];
         
+        // 获取站点涉及的所有线路
+        const stationLines = Array.from(new Set(stopData.filter(stop => stop.name === stationInfo.name).map(stop => stop.linename)));
+        
+        // 构建弹窗内容
         const popupContent = `
-            <div class="transfer-station-popup">
+            <div class="station-popup">
                 <div class="popup-header">
                     <h4>${stationInfo.name}</h4>
-                    <button class="popup-close-btn" id="station-popup-close">
+                    <button class="popup-close-btn" id="popup-close">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
                 <div class="popup-content">
                     <div class="popup-section">
                         <div class="popup-label"><i class="fas fa-info-circle"></i> 站点类型</div>
-                        <div class="popup-value">${isTransfer ? '换乘站' : '非换乘站'}</div>
+                        <div class="popup-value">${stationInfo.isTransfer ? '换乘站' : '普通站点'}</div>
                     </div>
                     <div class="popup-section">
-                        <div class="popup-label"><i class="fas fa-subway"></i> ${isTransfer ? '可换乘线路' : '所属线路'}</div>
+                        <div class="popup-label">
+                            <i class="fas fa-subway"></i> ${stationInfo.isTransfer ? '可换乘线路' : '所属线路'}
+                        </div>
                         <div class="transfer-lines">
                             ${stationLines.map(line => 
                                 `<span class="transfer-line-badge" style="border-left-color: ${lineColors[line] || getRandomColor(line)}">${line}</span>`
                             ).join('')}
                         </div>
                     </div>
-                    ${isTransfer ? `
+                    ${stationInfo.isTransfer ? `
                     <div class="popup-section">
-                        <div class="popup-label"><i class="fas fa-route"></i> 当前线路</div>
+                        <div class="popup-label"><i class="fas fa-route"></i> 当前查看线路</div>
                         <div class="popup-value">${stationInfo.lineName}</div>
                     </div>
                     ` : ''}
@@ -506,42 +520,47 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
                 <div class="popup-footer">
                     <button class="popup-action-btn" id="view-station-details">
-                        <i class="fas fa-search-location"></i> 查看站点详情
+                        <i class="fas fa-search-location"></i> 查看站点周边
                     </button>
                 </div>
             </div>
         `;
         
-        const popup = new mapboxgl.Popup({
+        // 创建弹窗
+        currentPopup = new mapboxgl.Popup({
             closeOnClick: false,
             closeButton: false,
             maxWidth: '300px',
-            className: 'transfer-popup'
+            className: 'station-popup-container'
         })
             .setLngLat(lngLat)
             .setHTML(popupContent)
             .addTo(map);
         
-        // 存储弹窗引用
-        if (isTransfer) {
-            currentTransferPopup = popup;
-        } else {
-            currentStationPopup = popup;
-        }
+        // 绑定事件
+        bindPopupEvents(stationInfo);
         
+        return currentPopup;
+    }
+
+    // 绑定弹窗事件
+    function bindPopupEvents(stationInfo) {
         // 关闭按钮事件
-        document.getElementById('station-popup-close').addEventListener('click', () => {
-            closeAllPopups();
+        document.getElementById('popup-close').addEventListener('click', () => {
+            closePopup();
         });
         
         // 查看详情按钮事件
         document.getElementById('view-station-details').addEventListener('click', () => {
-            closeAllPopups();
-            // 直接跳转到explorer.html
-            window.location.href = 'explorer.html';
+            // 获取当前城市
+            const cityParam = encodeURIComponent(currentCity);
+            // 获取站点名称
+            const stationParam = encodeURIComponent(stationInfo.name);
+            // 跳转到explorer页面并携带参数
+            window.location.href = `explorer.html?city=${cityParam}&station=${stationParam}`;
+            // 关闭弹窗
+            closePopup();
         });
-        
-        return popup;
     }
 
     // 更新弹窗中的站点序号显示
@@ -558,15 +577,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // 关闭所有弹窗
-    function closeAllPopups() {
-        if (currentTransferPopup) {
-            currentTransferPopup.remove();
-            currentTransferPopup = null;
-        }
-        if (currentStationPopup) {
-            currentStationPopup.remove();
-            currentStationPopup = null;
+    // 关闭弹窗
+    function closePopup() {
+        if (currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
         }
         currentPopupStationInfo = null;
     }
@@ -601,8 +616,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         activeLines.delete(lineName);
         
-        // 如果隐藏的线路是当前弹窗显示的线路，关闭弹窗
-        closeAllPopups();
+        // 关闭弹窗
+        closePopup();
         
         // 更新信息卡
         if (activeLines.size > 0) {
@@ -624,7 +639,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function toggleDirection() {
         currentDirection = currentDirection === 'normal' ? 'reverse' : 'normal';
         
-        // 如果当前有弹窗显示，直接更新弹窗内容
+        // 如果当前有弹窗显示，更新弹窗序号
         if (currentPopupStationInfo) {
             updatePopupStationOrder();
         }
@@ -747,7 +762,7 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             
             stationBtn.addEventListener('click', () => {
-                highlightTransferStation(station.name, lineName);
+                showTransferStationPopup(station.name, lineName);
             });
             
             transferStationsContainer.appendChild(stationBtn);
@@ -756,10 +771,10 @@ document.addEventListener('DOMContentLoaded', function() {
         transferStations = transferStationsList;
     }
 
-    // 高亮显示换乘站
-    function highlightTransferStation(stationName, currentLineName) {
-        // 关闭之前可能存在的弹窗
-        closeAllPopups();
+    // 显示换乘站弹窗（调用统一弹窗函数）
+    function showTransferStationPopup(stationName, currentLineName) {
+        // 关闭之前的弹窗
+        closePopup();
         
         // 找到该站点的坐标
         const station = stopData.find(stop => 
@@ -773,19 +788,20 @@ document.addEventListener('DOMContentLoaded', function() {
             name: station.name,
             lineName: station.linename,
             num: station.num,
-            coordinates: [station.lon, station.lat]
+            coordinates: [station.lon, station.lat],
+            isTransfer: true
         };
         
         // 飞向该站点
         map.flyTo({
-            center: [station.lon-0.001, station.lat+0.001],
+            center: [station.lon - 0.001, station.lat + 0.001],
             zoom: 15,
             duration: 1000
         });
         
-        // 显示站点信息弹窗
+        // 显示统一弹窗
         setTimeout(() => {
-            createStationPopup(currentPopupStationInfo, [station.lon, station.lat], true);
+            createUnifiedStationPopup(currentPopupStationInfo, [station.lon, station.lat]);
         }, 1000);
     }
 

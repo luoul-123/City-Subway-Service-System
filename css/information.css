@@ -858,3 +858,171 @@ body {
         padding: 12px 16px;
     }
 }
+
+/* 统一站点弹窗样式 */
+.station-popup-container .mapboxgl-popup-content {
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    min-width: 280px;
+    border: none;
+    transition: transform 0.2s ease-out;
+    animation: popupSlideIn 0.3s ease-out;
+}
+
+.station-popup .popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, #1a2a6c, #24378a);
+    color: white;
+    position: relative;
+}
+
+.station-popup .popup-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+}
+
+.station-popup .popup-close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    font-size: 14px;
+}
+
+.station-popup .popup-close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.station-popup .popup-content {
+    padding: 20px;
+    background: white;
+}
+
+.station-popup .popup-section {
+    margin-bottom: 16px;
+}
+
+.station-popup .popup-section:last-child {
+    margin-bottom: 0;
+}
+
+.station-popup .popup-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.station-popup .popup-label i {
+    width: 14px;
+    text-align: center;
+}
+
+.station-popup .popup-value {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+    padding-left: 22px;
+}
+
+.station-popup .transfer-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 22px;
+}
+
+.station-popup .transfer-line-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #f8f9fa;
+    border-left: 3px solid;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #333;
+    transition: all 0.3s;
+    cursor: default;
+}
+
+.station-popup .transfer-line-badge:hover {
+    background: #e9ecef;
+    transform: translateX(2px);
+}
+
+.station-popup .popup-footer {
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+    text-align: center;
+}
+
+.station-popup .popup-action-btn {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #1a2a6c, #24378a);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.station-popup .popup-action-btn:hover {
+    background: linear-gradient(135deg, #24378a, #2d45a3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 42, 108, 0.3);
+}
+
+/* 弹窗动画效果 */
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .station-popup-container .mapboxgl-popup-content {
+        min-width: 250px;
+        max-width: 90vw;
+    }
+    
+    .station-popup .popup-header {
+        padding: 12px 16px;
+    }
+    
+    .station-popup .popup-content {
+        padding: 16px;
+    }
+    
+    .station-popup .popup-footer {
+        padding: 12px 16px;
+    }
+}
