@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>路线规划 - 城市地铁服务系统</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet'>
     <link rel="stylesheet" href="./css/planner.css">
+    <!-- 高德地图API -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=62a52b51785288c7f0166729b5ccdb23&plugin=AMap.Geolocation,AMap.Geocoder"></script>
 </head>
 <body>
     <!-- 导航容器 -->
@@ -44,11 +47,26 @@
 
                 <!-- 路线查询表单 -->
                 <div class="route-form">
-                    <div class="form-group">
+                    <!-- 起点输入组（包含定位按钮） -->
+                    <div class="form-group with-location-btn">
                         <label for="start-station"><i class="fas fa-location-arrow"></i> 起点</label>
-                        <input type="text" id="start-station" placeholder="输入地铁站名或地址">
+                        <div class="input-with-btn">
+                            <input type="text" id="start-station" placeholder="输入地铁站名或地址">
+                            <button id="locate-btn" class="location-btn inline-location-btn" title="定位到当前位置">
+                                <i class="fas fa-location-arrow"></i>
+                            </button>
+                        </div>
+                        <div id="location-info" class="location-info" style="display: none;"></div>
                     </div>
                     
+                    <!-- 切换起点终点按钮 -->
+                    <div class="switch-start-end">
+                        <button id="switch-start-end-btn" class="switch-btn">
+                            <i class="fas fa-exchange-alt"></i> 切换起点终点
+                        </button>
+                    </div>
+                    
+                    <!-- 终点输入组 -->
                     <div class="form-group">
                         <label for="end-station"><i class="fas fa-map-marker-alt"></i> 终点</label>
                         <input type="text" id="end-station" placeholder="输入地铁站名或地址">
@@ -58,19 +76,14 @@
                         <label class="option-label">规划偏好:</label>
                         <div class="radio-options">
                             <label class="radio-option">
-                                <input type="radio" name="route-preference" value="fastest" checked>
+                                <input type="radio" name="route-preference" value="shortest" checked>
                                 <span class="radio-custom"></span>
-                                <span class="radio-text">最快路线</span>
+                                <span class="radio-text">最短路径</span>
                             </label>
                             <label class="radio-option">
                                 <input type="radio" name="route-preference" value="least-transfers">
                                 <span class="radio-custom"></span>
                                 <span class="radio-text">最少换乘</span>
-                            </label>
-                            <label class="radio-option">
-                                <input type="radio" name="route-preference" value="least-walking">
-                                <span class="radio-custom"></span>
-                                <span class="radio-text">最少步行</span>
                             </label>
                         </div>
                     </div>
