@@ -283,6 +283,24 @@ function initMap() {
         attributionControl: false
     });
 
+        // 添加语言控制
+    map.addControl(new MapboxLanguage({
+        defaultLanguage: 'zh-Hans'  // 简体中文
+    }));
+
+    // 加载后刷新标签
+    map.on('load', function() {
+        // 设置中文字体以确保正确显示
+        const layers = map.getStyle().layers;
+        layers.forEach(layer => {
+            if (layer.type === 'symbol') {
+                map.setLayoutProperty(layer.id, 'text-font', [
+                    'Noto Sans CJK SC Regular'
+                ]);
+            }
+        });
+    });
+
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
 }
