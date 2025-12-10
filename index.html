@@ -24,7 +24,7 @@
             <a href="#wuhan">武汉</a>
             
             <!-- 登录按钮：添加专属类名，用于区分样式 -->
-            <a href="login.html" class="login-btn">登录</a>
+            <a href="login.html" class="login-btn" id="login-entry">登录</a>
         </div>
     </div>
 
@@ -163,5 +163,21 @@
     <div class="footer">
         <p>© 2025 城市地铁服务系统 版权所有 | 联系邮箱:3216527594@qq.com</p>
     </div>
+    <script>
+        // 根据登录态调整首页右上角入口
+        (function() {
+            const btn = document.getElementById('login-entry');
+            if (!btn) return;
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            const userId = localStorage.getItem('userId');
+            if (isLoggedIn && userId) {
+                btn.textContent = '个人中心';
+                btn.href = 'profile.html';
+            } else {
+                btn.textContent = '登录';
+                btn.href = 'login.html';
+            }
+        })();
+    </script>
 </body>
 </html>

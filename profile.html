@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - 城市地铁服务系统</title>
+    <link rel="stylesheet" href="css/profile.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- 导航容器 -->
+    <div id="nav-container"></div>
+
+    <!-- 页面主体内容 -->
+    <main class="profile-container">
+        <div class="profile-header">
+            <div class="avatar-section">
+                <div class="avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h2 id="username">用户</h2>
+                <p class="user-role">普通用户</p>
+            </div>
+        </div>
+
+        <div class="profile-content">
+            <!-- 用户信息卡片 -->
+            <div class="info-card">
+                <div class="card-header">
+                    <i class="fas fa-user-circle"></i>
+                    <h3>个人信息</h3>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <span class="info-label">
+                            <i class="fas fa-user"></i>
+                            用户名
+                        </span>
+                        <span class="info-value" id="display-username">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">
+                            <i class="fas fa-calendar"></i>
+                            注册时间
+                        </span>
+                        <span class="info-value" id="register-time">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">
+                            <i class="fas fa-history"></i>
+                            最近登录
+                        </span>
+                        <span class="info-value" id="last-login-time">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">
+                            <i class="fas fa-envelope"></i>
+                            邮箱
+                        </span>
+                        <span class="info-value" id="email-value">未绑定</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 功能卡片 -->
+            <div class="info-card">
+                <div class="card-header">
+                    <i class="fas fa-cog"></i>
+                    <h3>账户设置</h3>
+                </div>
+                <div class="card-body">
+                    <div class="action-item" id="change-password-item">
+                        <i class="fas fa-key"></i>
+                        <span>修改密码</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <div class="action-item" id="change-security-question-item">
+                        <i class="fas fa-question-circle"></i>
+                        <span>修改安全问题答案</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                    <div class="action-item" id="favorite-stations-item">
+                        <i class="fas fa-star"></i>
+                        <span>收藏站点</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 退出登录按钮 -->
+            <div class="logout-section">
+                <button id="logout-btn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    退出登录
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script src="./js/nav.js"></script>
+    <script src="./js/profile.js"></script>
+</body>
+</html>
+

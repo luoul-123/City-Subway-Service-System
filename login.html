@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="css/login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
+
 <body>
     <!-- 顶部导航部分 -->
     <div class="shortcut">
@@ -17,6 +19,7 @@
             </a>
         </div>
         <div class="nav-links">
+            <a href="index.html">返回首页</a>
             <a href="#">服务公告</a>
             <a href="#">联系我们</a>
         </div>
@@ -26,20 +29,62 @@
     <div class="section">
         <div class="login">
             <h2>用户登录</h2>
-            <form action="">
+            <form id="login-form" action="">
                 <div class="form-group">
-                    <label for="username">账号</label>
-                    <input type="text" id="username" class="username" name="id" placeholder="请输入账号..." autocomplete="off">
+                    <label for="username">账号 / 邮箱</label>
+                    <input type="text" id="username" class="username" name="id" placeholder="请输入用户名或邮箱..."
+                        autocomplete="off">
                 </div>
                 <div class="form-group">
                     <label for="password">密码</label>
-                    <input type="password" id="password" class="password" name="pwd" placeholder="请输入密码..." autocomplete="off">
+                    <input type="password" id="password" class="password" name="pwd" placeholder="请输入密码..."
+                        autocomplete="off">
                 </div>
+                <div id="login-error" class="form-error" style="display:none;"></div>
                 <button type="submit">登录</button>
             </form>
             <div class="additional-options">
-                <a href="#">忘记密码?</a>
-                <a href="#">注册新账号</a>
+                <a href="#" id="forgot-password-link">忘记密码?</a>
+                <a href="register.html">注册新账号</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 忘记密码弹窗 -->
+    <div id="forgot-password-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>忘记密码</h3>
+                <button class="modal-close" id="close-forgot-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="forgot-identifier">账号 / 邮箱</label>
+                    <input type="text" id="forgot-identifier" placeholder="请输入用户名或邮箱" autocomplete="off">
+                </div>
+                <div id="forgot-step1" class="forgot-step">
+                    <button type="button" id="get-question-btn" class="modal-btn">下一步</button>
+                </div>
+                <div id="forgot-step2" class="forgot-step" style="display:none;">
+                    <div class="form-group">
+                        <label>安全问题</label>
+                        <p id="security-question-text" style="margin:5px 0; color:#666; font-size:14px;"></p>
+                    </div>
+                    <div class="form-group">
+                        <label for="forgot-answer">安全问题答案</label>
+                        <input type="text" id="forgot-answer" placeholder="请输入答案" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="forgot-new-password">新密码</label>
+                        <input type="password" id="forgot-new-password" placeholder="请输入新密码" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="forgot-confirm-password">确认新密码</label>
+                        <input type="password" id="forgot-confirm-password" placeholder="请再次输入新密码" autocomplete="off">
+                    </div>
+                    <div id="forgot-error" class="form-error" style="display:none;"></div>
+                    <button type="button" id="reset-password-btn" class="modal-btn">重置密码</button>
+                </div>
             </div>
         </div>
     </div>
@@ -51,4 +96,5 @@
 
     <script src="js/login.js"></script>
 </body>
+
 </html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>修改安全问题答案 - 城市地铁服务系统</title>
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- 顶部导航部分 -->
+    <div class="shortcut">
+        <div class="logo">
+            <a href="index.html" title="城市地铁服务系统">
+                <i class="fas fa-subway"></i>
+                <p>城市地铁服务系统</p>
+            </a>
+        </div>
+        <div class="nav-links">
+            <a href="profile.html">返回个人中心</a>
+        </div>
+    </div>
+
+    <!-- 修改安全问题答案区域 -->
+    <div class="section">
+        <div class="login">
+            <h2>修改安全问题答案</h2>
+            <form id="change-security-question-form" action="">
+                <div id="step1" class="password-step">
+                    <div class="form-group">
+                        <label>安全问题</label>
+                        <p id="security-question-text" style="margin:5px 0 15px; color:#666; font-size:14px;">你小学时期最喜欢的老师的名字是什么？</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="old-answer">当前安全问题答案</label>
+                        <input type="text" id="old-answer" placeholder="请输入当前答案" autocomplete="off">
+                    </div>
+                    <div id="step1-error" class="form-error" style="display:none;"></div>
+                    <button type="button" id="verify-old-answer-btn">验证答案</button>
+                </div>
+                <div id="step2" class="password-step" style="display:none;">
+                    <div class="form-group">
+                        <label>新安全问题</label>
+                        <p style="margin:5px 0 15px; color:#666; font-size:14px;">你小学时期最喜欢的老师的名字是什么？</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-answer">新安全问题答案</label>
+                        <input type="text" id="new-answer" placeholder="请输入新答案" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm-new-answer">确认新答案</label>
+                        <input type="text" id="confirm-new-answer" placeholder="请再次输入新答案" autocomplete="off">
+                    </div>
+                    <div id="step2-error" class="form-error" style="display:none;"></div>
+                    <button type="button" id="change-answer-btn">修改答案</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <div class="footer">
+        <p>© 2025 城市地铁服务系统 版权所有 | 联系邮箱:3216527594@qq.com</p>
+    </div>
+
+    <script src="js/change-security-question.js"></script>
+</body>
+</html>
+

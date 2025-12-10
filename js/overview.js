@@ -54,6 +54,7 @@ document.addEventListener('DOMContentLoaded', function () {
         zoom: cityConfig[initialCity].zoom,
         attributionControl: false
     });
+
     // 添加语言控制
     map.addControl(new MapboxLanguage({
         defaultLanguage: 'zh-Hans'  // 简体中文
@@ -81,6 +82,8 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentCity = initialCity; // 当前选中城市（从URL参数或默认值）
     let lineLayers = []; // 存储所有线路图层ID
     let eventHandlers = new Map(); // 存储事件处理器引用，用于移除
+    let highlightedLineId = null; // 当前高亮的线路ID
+    let lineColorsMap = new Map(); // 存储每个线路图层的原始颜色
 
     // 4. 线路颜色配置（与information.js保持一致）
     const lineColors = {
@@ -314,6 +317,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 8. 清除所有线路
     function clearAllLines() {
+        // 清除高亮
+        clearHighlight();
+        
+        // 清空颜色映射
+        lineColorsMap.clear();
+
         // 移除所有事件监听器
         lineLayers.forEach(layerId => {
             // 移除事件监听器
@@ -347,8 +356,46 @@ document.addEventListener('DOMContentLoaded', function () {
                     console.warn(`移除数据源失败: ${layerId}`, e);
                 }
             }
+            // 移除标签数据源
+            if (map.getSource(`${layerId}-label-source`)) {
+                try {
+                    map.removeSource(`${layerId}-label-source`);
+                } catch (e) {
+                    console.warn(`移除标签数据源失败: ${layerId}-label-source`, e);
+                }
+            }
         });
         lineLayers = [];
+    }
+
+    // 高亮指定线路
+    function highlightLine(lineId, lineColor) {
+        // 清除之前的高亮
+        clearHighlight();
+
+        // 设置高亮
+        highlightedLineId = lineId;
+        if (map.getLayer(lineId)) {
+            // 增加线宽和透明度
+            map.setPaintProperty(lineId, 'line-width', 8);
+            map.setPaintProperty(lineId, 'line-opacity', 1);
+            // 添加光晕效果（通过增加线宽和调整颜色实现）
+            map.setPaintProperty(lineId, 'line-color', lineColor);
+        }
+    }
+
+    // 清除高亮
+    function clearHighlight() {
+        if (highlightedLineId && map.getLayer(highlightedLineId)) {
+            // 恢复原始样式
+            const originalColor = lineColorsMap.get(highlightedLineId);
+            if (originalColor) {
+                map.setPaintProperty(highlightedLineId, 'line-color', originalColor);
+            }
+            map.setPaintProperty(highlightedLineId, 'line-width', 4);
+            map.setPaintProperty(highlightedLineId, 'line-opacity', 0.8);
+        }
+        highlightedLineId = null;
     }
 
     // 9. 显示所有线路
@@ -419,6 +466,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         }
                     });
 
+                    // 获取线路颜色
+                    const lineColor = lineColors[lineName] || getRandomColor(lineName);
+                    
                     // 添加线路图层
                     map.addLayer({
                         id: lineId,
@@ -429,11 +479,73 @@ document.addEventListener('DOMContentLoaded', function () {
                             'line-cap': 'round'
                         },
                         paint: {
-                            'line-color': lineColors[lineName] || getRandomColor(lineName),
+                            'line-color': lineColor,
                             'line-width': 4,
                             'line-opacity': 0.8
                         }
                     });
+
+                    // 保存原始颜色
+                    lineColorsMap.set(lineId, lineColor);
+
+                    // 添加线路注记文字图层
+                    const labelId = `${lineId}-label`;
+                    try {
+                        // 为线路名称创建点要素（使用线路中点位置）
+                        const coordinates = feature.geometry.coordinates;
+                        let labelPosition;
+                        if (coordinates.length > 0) {
+                            // 取线路中点位置作为标签位置
+                            const midIndex = Math.floor(coordinates.length / 2);
+                            labelPosition = coordinates[midIndex];
+                        } else {
+                            labelPosition = coordinates[0];
+                        }
+
+                        // 创建标签数据源
+                        map.addSource(`${lineId}-label-source`, {
+                            type: 'geojson',
+                            data: {
+                                type: 'FeatureCollection',
+                                features: [{
+                                    type: 'Feature',
+                                    geometry: {
+                                        type: 'Point',
+                                        coordinates: labelPosition
+                                    },
+                                    properties: {
+                                        name: lineName
+                                    }
+                                }]
+                            }
+                        });
+
+                        // 添加文字标签图层
+                        map.addLayer({
+                            id: labelId,
+                            type: 'symbol',
+                            source: `${lineId}-label-source`,
+                            layout: {
+                                'text-field': lineName,
+                                'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
+                                'text-size': 12,
+                                'text-anchor': 'center',
+                                'text-offset': [0, 0],
+                                'text-allow-overlap': false,
+                                'text-ignore-placement': false
+                            },
+                            paint: {
+                                'text-color': '#333',
+                                'text-halo-color': '#fff',
+                                'text-halo-width': 2,
+                                'text-halo-blur': 1
+                            }
+                        });
+
+                        lineLayers.push(labelId);
+                    } catch (error) {
+                        console.warn(`添加线路标签失败: ${lineName}`, error);
+                    }
 
                     lineLayers.push(lineId);
 
@@ -443,24 +555,29 @@ document.addEventListener('DOMContentLoaded', function () {
                         const properties = e.features[0].properties;
                         const clickedLineName = properties.name;
 
-                        // 跳转到information.html并传递城市和线路信息
-                        const cityParam = encodeURIComponent(currentCity);
-                        const lineParam = encodeURIComponent(clickedLineName);
-                        window.location.href = `information.html?city=${cityParam}&line=${lineParam}`;
+                        // 高亮显示被点击的线路
+                        highlightLine(lineId, lineColors[clickedLineName] || getRandomColor(clickedLineName));
+
+                        // 延迟跳转，让用户看到高亮效果
+                        setTimeout(() => {
+                            const cityParam = encodeURIComponent(currentCity);
+                            const lineParam = encodeURIComponent(clickedLineName);
+                            window.location.href = `information.html?city=${cityParam}&line=${lineParam}`;
+                        }, 300);
                     };
 
                     const mouseenterHandler = () => {
                         map.getCanvas().style.cursor = 'pointer';
-                        // 高亮显示当前线路
-                        if (map.getLayer(lineId)) {
+                        // 鼠标悬停时高亮显示当前线路（如果不是已点击高亮的线路）
+                        if (map.getLayer(lineId) && highlightedLineId !== lineId) {
                             map.setPaintProperty(lineId, 'line-width', 6);
                         }
                     };
 
                     const mouseleaveHandler = () => {
                         map.getCanvas().style.cursor = '';
-                        // 恢复原宽度
-                        if (map.getLayer(lineId)) {
+                        // 恢复原宽度（如果不是已点击高亮的线路）
+                        if (map.getLayer(lineId) && highlightedLineId !== lineId) {
                             map.setPaintProperty(lineId, 'line-width', 4);
                         }
                     };
