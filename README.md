@@ -20,5 +20,6 @@
 1. 数据格式：JSON数据线要素是简化了的。
 
 ## 数据来源
-地铁数据来源：[CSDN博客 - Onestaring 的地铁数据分享](https://blog.csdn.net/Onestaring/article/details/136083773)
-POI数据来源：高德地图开放平台爬取
+1. 地铁数据来源：[CSDN博客 - Onestaring 的地铁数据分享](https://blog.csdn.net/Onestaring/article/details/136083773)
+stop.json为代表站点数据（包含往返）的json文件，其中name代表站点名字，linename代表线路的名称，x是线路的编号，lon代表经度，lat代表纬度，num代表该站点在该线路的第几个站，direction代表线路的方向，例如地铁1号线（莘庄-富锦路）的direction为1，而地铁1号线（富锦路-莘庄）的direction为2，direction仅有1和2两个取值
+2. POI数据来源：高德地图开放平台爬取
