@@ -1,129 +1,203 @@
 document.addEventListener('DOMContentLoaded', function () {
     // ========== 核心配置 ==========
     mapboxgl.accessToken = 'pk.eyJ1IjoiY2JubWZ5aiIsImEiOiJjbTdhYTU4cjEwMXVlMnFwdzlvNHA2MWZyIn0.xM1rgUx9ZeG7h2boM1t_oQ';
+    
     const cityConfig = {
         'nj': { name: '南京', center: [118.796877, 32.060255], zoom: 10 },
         'bj': { name: '北京', center: [116.4074, 39.9042], zoom: 10 },
         'sh': { name: '上海', center: [121.4737, 31.2304], zoom: 10 },
         'wh': { name: '武汉', center: [114.3055, 30.5928], zoom: 10 }
     };
+    
+    // 全局变量
     let currentCity = 'nj';
     let currentPOIData = [];
     let stopData = [];
-    let uniqueStopData = []; // 新增：去重后的地铁站数据
-    window.startMarker = null;
-    window.endMarker = null;
-    window.userLocationMarker = null;
-    window.startSubwayMarker = null; // 新增：起点最近地铁站标记
-    window.endSubwayMarker = null;   // 新增：终点最近地铁站标记
+    let uniqueStopData = [];
+    let map;
+    let markerManager;
+    let autocompleteManager;
+    let isInitializing = false;
 
     // ========== 地图初始化 ==========
-    const map = new mapboxgl.Map({
-        container: 'planner-map',
-        style: 'mapbox://styles/mapbox/light-v11',
-        center: cityConfig[currentCity].center,
-        zoom: cityConfig[currentCity].zoom,
-        attributionControl: false
-    });
+    function initMap() {
+        try {
+            map = new mapboxgl.Map({
+                container: 'planner-map',
+                style: 'mapbox://styles/mapbox/light-v11',
+                center: cityConfig[currentCity].center,
+                zoom: cityConfig[currentCity].zoom,
+                attributionControl: false
+            });
 
-    // 添加控件和语言配置
-    map.addControl(new MapboxLanguage({ defaultLanguage: 'zh-Hans' }));
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-    map.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
+            // 添加控件
+            map.addControl(new MapboxLanguage({ defaultLanguage: 'zh-Hans' }));
+            map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+            map.addControl(new mapboxgl.ScaleControl(), 'bottom-left');
 
-    // 地图加载完成后配置中文字体
-    map.on('load', function() {
-        map.getStyle().layers.forEach(layer => {
-            if (layer.type === 'symbol') {
-                map.setLayoutProperty(layer.id, 'text-font', ['Noto Sans CJK SC Regular']);
+            // 地图加载完成后配置
+            map.on('load', function() {
+                console.log('地图加载完成');
+                
+                // 配置中文字体
+                map.getStyle().layers.forEach(layer => {
+                    if (layer.type === 'symbol') {
+                        map.setLayoutProperty(layer.id, 'text-font', ['Noto Sans CJK SC Regular']);
+                    }
+                });
+                
+                // 初始化精度圈图层
+                if (typeof initAccuracyLayer === 'function') {
+                    initAccuracyLayer(map);
+                } else {
+                    console.warn('initAccuracyLayer函数未定义');
+                }
+            });
+
+            // 初始化标记管理器
+            if (typeof MarkerManager === 'function') {
+                markerManager = new MarkerManager(map);
+                console.log('标记管理器初始化成功');
+            } else {
+                console.error('MarkerManager类未定义，请检查marker-utils.js是否正确加载');
             }
-        });
-        // 初始化精度圈图层（定位功能）
-        initAccuracyLayer();
-    });
+
+            return true;
+        } catch (error) {
+            console.error('地图初始化失败:', error);
+            return false;
+        }
+    }
 
     // ========== 城市切换功能 ==========
-    function initCitySwitchEvents() {
+    function initCitySwitch() {
         const cityBtns = document.querySelectorAll('.city-btn');
         const currentCityEl = document.querySelector('.current-city');
 
         // 初始化激活状态
         cityBtns.forEach(btn => {
-            if (btn.getAttribute('data-city') === currentCity) btn.classList.add('active');
+            if (btn.getAttribute('data-city') === currentCity) {
+                btn.classList.add('active');
+            }
         });
 
         // 绑定切换事件
         cityBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 const cityCode = btn.getAttribute('data-city');
-                if (cityCode !== currentCity) {
-                    cityBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    currentCityEl.textContent = `当前城市：${cityConfig[cityCode].name}`;
-                    switchCity(cityCode);
+                if (cityCode !== currentCity && !isInitializing) {
+                    switchCity(cityCode, cityBtns, currentCityEl);
                 }
             });
         });
     }
 
-    function switchCity(cityCode) {
-        currentCity = cityCode;
-        map.flyTo({ center: cityConfig[cityCode].center, zoom: cityConfig[cityCode].zoom, duration: 1000 });
+    async function switchCity(cityCode, cityBtns, currentCityEl) {
+        isInitializing = true;
         
-        // 清除所有标记和路线
-        const cleared = clearMarkersAndRoutes(
-            map, 
-            window.startMarker, 
-            window.endMarker, 
-            window.userLocationMarker
-        );
-        window.startMarker = cleared.startMarker;
-        window.endMarker = cleared.endMarker;
-        window.userLocationMarker = cleared.userLocationMarker;
-        
-        // 新增：清除地铁标记
-        if (window.startSubwayMarker) window.startSubwayMarker.remove();
-        if (window.endSubwayMarker) window.endSubwayMarker.remove();
-        window.startSubwayMarker = null;
-        window.endSubwayMarker = null;
-        
-        // 加载数据（新增去重处理）
-        Promise.all([
-            loadPOIData(currentCity).then(data => currentPOIData = data),
-            loadStopData(currentCity).then(data => {
-                stopData = data;
-                uniqueStopData = uniqueStations(data); // 去重处理
-            })
-        ]).catch(error => console.error('数据加载失败:', error));
-    }
-
-    // ========== 定位功能 ==========
-    function initAccuracyLayer() {
-        if (!map.getSource('user-accuracy-source')) {
-            map.addSource('user-accuracy-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-            map.addLayer({
-                id: 'user-accuracy-layer',
-                type: 'circle',
-                source: 'user-accuracy-source',
-                paint: {
-                    'circle-radius': ['get', 'accuracy'],
-                    'circle-color': 'rgba(0, 123, 255, 0.2)',
-                    'circle-stroke-color': '#007bff',
-                    'circle-stroke-width': 1,
-                    'circle-stroke-dasharray': [2, 2]
+        try {
+            // 更新按钮状态
+            cityBtns.forEach(b => b.classList.remove('active'));
+            cityBtns.forEach(b => {
+                if (b.getAttribute('data-city') === cityCode) {
+                    b.classList.add('active');
                 }
             });
+            
+            // 更新显示
+            currentCityEl.textContent = `当前城市：${cityConfig[cityCode].name}`;
+            currentCity = cityCode;
+            
+            // 地图跳转
+            map.flyTo({
+                center: cityConfig[cityCode].center,
+                zoom: cityConfig[cityCode].zoom,
+                duration: 1000
+            });
+            
+            // 清除所有标记和路线
+            if (markerManager) {
+                markerManager.clearAllMarkers();
+            }
+            
+            if (typeof clearRoute === 'function') {
+                clearRoute(map);
+            }
+            
+            // 清空输入框
+            document.getElementById('start-station').value = '';
+            document.getElementById('end-station').value = '';
+            document.getElementById('result-panel').style.display = 'none';
+            
+            // 加载新数据
+            await loadCityData(cityCode);
+            
+            // 清理自动完成管理器
+            if (autocompleteManager && typeof autocompleteManager.cleanup === 'function') {
+                autocompleteManager.cleanup();
+            }
+            
+            // 重新初始化自动完成
+            initAutocomplete();
+            
+        } catch (error) {
+            console.error('切换城市失败:', error);
+            alert('城市切换失败，请刷新页面重试');
+        } finally {
+            isInitializing = false;
         }
     }
 
+    // ========== 数据加载 ==========
+    async function loadCityData(cityCode) {
+        try {
+            const [poiData, stopDataResult] = await Promise.all([
+                loadPOIData(cityCode),
+                loadStopData(cityCode)
+            ]);
+            
+            currentPOIData = poiData;
+            stopData = stopDataResult;
+            
+            // 去重处理
+            if (typeof uniqueStations === 'function') {
+                uniqueStopData = uniqueStations(stopDataResult);
+            } else {
+                uniqueStopData = stopDataResult;
+            }
+            
+            console.log(`数据加载完成: ${poiData.length}个POI, ${uniqueStopData.length}个去重站点`);
+            
+            // 更新自动完成管理器数据
+            if (autocompleteManager && typeof autocompleteManager.updateData === 'function') {
+                autocompleteManager.updateData(currentPOIData, stopData);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('数据加载失败:', error);
+            throw error;
+        }
+    }
+
+    // ========== 定位功能 ==========
     function initLocationService() {
         const locateBtn = document.getElementById('locate-btn');
-        locateBtn.addEventListener('click', getUserLocation);
+        if (locateBtn) {
+            locateBtn.addEventListener('click', getUserLocation);
+        } else {
+            console.warn('定位按钮未找到');
+        }
     }
 
     function getUserLocation() {
         const locateBtn = document.getElementById('locate-btn');
         const locationInfo = document.getElementById('location-info');
+        
+        if (!locateBtn || !locationInfo) {
+            console.error('定位相关元素未找到');
+            return;
+        }
         
         locateBtn.classList.add('locating');
         locationInfo.style.display = 'block';
@@ -135,74 +209,71 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         
-        AMap.plugin('AMap.Geolocation', function() {
-            const geolocation = new AMap.Geolocation({
-                enableHighAccuracy: true,
-                timeout: 10000,
-                zoomToAccuracy: true              
-            });
+        try {
+            AMap.plugin('AMap.Geolocation', function() {
+                const geolocation = new AMap.Geolocation({
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    zoomToAccuracy: true              
+                });
 
-            geolocation.getCurrentPosition(function(status, result) {
-                locateBtn.classList.remove('locating');
-                if (status === 'complete') {
-                    const lng = result.position.lng;
-                    const lat = result.position.lat;
-                    const accuracy = result.accuracy || 0;
-                    const [wgsLng, wgsLat] = gcj02ToWgs84(lng, lat);
-                    
-                    // 地图跳转
-                    map.flyTo({ center: [lng, lat], zoom: 16, duration: 1000 });
-                    
-                    // 更新精度圈
-                    map.getSource('user-accuracy-source').setData({
-                        type: 'FeatureCollection',
-                        features: [{
-                            type: 'Feature',
-                            geometry: { type: 'Point', coordinates: [wgsLng, wgsLat] },
-                            properties: { accuracy: accuracy }
-                        }]
-                    });
-                    
-                    // 更新用户位置标记
-                    if (window.userLocationMarker) {
-                        window.userLocationMarker.setLngLat([wgsLng, wgsLat]);
-                    } else {
-                        const el = document.createElement('div');
-                        el.className = 'user-location-marker';
-                        window.userLocationMarker = new mapboxgl.Marker(el)
-                            .setLngLat([lng, lat])
-                            .addTo(map);
-                    }
-                    
-                    // 设置起点
-                    document.getElementById('start-station').value = '当前位置';
-                    locationInfo.innerHTML = `<i class="fas fa-check-circle"></i> 定位成功 (精度: ${Math.round(accuracy)}m)`;
-                    locationInfo.className = 'location-info success';
-
-                    // 新增：查找并标记最近的地铁站（作为起点）
-                    if (uniqueStopData.length) {
-                        const nearestSubway = findNearestStation(uniqueStopData, wgsLat, wgsLng);
-                        if (nearestSubway) {
-                            // 清除旧标记
-                            if (window.startSubwayMarker) window.startSubwayMarker.remove();
-                            // 创建新标记
-                            window.startSubwayMarker = markNearestStation(map, nearestSubway, 'start');
-                            // 显示提示
-                            locationInfo.innerHTML += `<div style="margin-top: 4px;">最近地铁站: ${nearestSubway.name} (${(nearestSubway.distance / 1000).toFixed(2)}公里)</div>`;
-                        }
-                    }
-                } else {
-                    const errorMessage = `定位失败: ${result.message}`;
-                    let solutions = '';
-                    if (result.message.includes('HTTPS')) solutions = '<div style="margin-top: 4px; font-size: 11px;">请在HTTPS环境下使用定位功能</div>';
-                    else if (result.message.includes('权限')) solutions = '<div style="margin-top: 4px; font-size: 11px;">请开启位置权限后重试</div>';
-                    
-                    locationInfo.innerHTML = `<div><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> ${errorMessage}</div>${solutions}`;
-                    locationInfo.className = 'location-info error';
-                    setTimeout(() => locationInfo.style.display = 'none', 5000);
-                }
+                geolocation.getCurrentPosition(function(status, result) {
+                    handleLocationResult(status, result, locateBtn, locationInfo);
+                });
             });
-        });
+        } catch (error) {
+            console.error('定位功能调用失败:', error);
+            showLocationError('定位功能异常，请检查浏览器权限');
+        }
+    }
+
+    function handleLocationResult(status, result, locateBtn, locationInfo) {
+        locateBtn.classList.remove('locating');
+        
+        if (status === 'complete') {
+            const lng = result.position.lng;
+            const lat = result.position.lat;
+            const accuracy = result.accuracy || 0;
+            
+            // 坐标系转换
+            let wgsLng = lng, wgsLat = lat;
+            if (typeof gcj02ToWgs84 === 'function') {
+                [wgsLng, wgsLat] = gcj02ToWgs84(lng, lat);
+            }
+            
+            // 更新地图
+            map.flyTo({ center: [lng, lat], zoom: 16, duration: 1000 });
+            
+            // 更新精度圈
+            if (typeof updateAccuracyCircle === 'function') {
+                updateAccuracyCircle(map, wgsLng, wgsLat, accuracy);
+            }
+            
+            // 创建/更新用户位置标记
+            if (markerManager && typeof markerManager.createUserLocationMarker === 'function') {
+                markerManager.createUserLocationMarker([lng, lat]);
+            }
+            
+            // 更新输入框
+            document.getElementById('start-station').value = '当前位置';
+            locationInfo.innerHTML = `<i class="fas fa-check-circle"></i> 定位成功 (精度: ${Math.round(accuracy)}m)`;
+            locationInfo.className = 'location-info success';
+
+            // 查找并标记最近的地铁站
+            findAndMarkNearestSubway(wgsLat, wgsLng, 'start', locationInfo);
+        } else {
+            showLocationError(`定位失败: ${result.message}`, locationInfo);
+        }
+    }
+
+    function findAndMarkNearestSubway(lat, lng, type, locationInfo) {
+        if (uniqueStopData.length && typeof findNearestStation === 'function') {
+            const nearestSubway = findNearestStation(uniqueStopData, lat, lng);
+            if (nearestSubway && markerManager && typeof markerManager.createSubwayMarker === 'function') {
+                markerManager.createSubwayMarker(nearestSubway, type);
+                locationInfo.innerHTML += `<div style="margin-top: 4px;">最近地铁站: ${nearestSubway.name} (${(nearestSubway.distance / 1000).toFixed(2)}公里)</div>`;
+            }
+        }
     }
 
     // ========== 自动完成功能 ==========
@@ -210,146 +281,41 @@ document.addEventListener('DOMContentLoaded', function () {
         const startInput = document.getElementById('start-station');
         const endInput = document.getElementById('end-station');
         
-        initAutocompleteForInput(startInput, 'start');
-        initAutocompleteForInput(endInput, 'end');
+        if (!startInput || !endInput) {
+            console.error('自动完成输入框未找到');
+            return;
+        }
+        
+        // 创建自动完成管理器
+        if (typeof AutocompleteManager === 'function') {
+            autocompleteManager = new AutocompleteManager(
+                map, 
+                currentPOIData, 
+                stopData,
+                handleLocationSelect
+            );
+            
+            autocompleteManager.initForInput(startInput, 'start');
+            autocompleteManager.initForInput(endInput, 'end');
+            console.log('自动完成管理器初始化成功');
+        } else {
+            console.error('AutocompleteManager类未定义，请检查autocomplete-utils.js是否正确加载');
+        }
     }
 
-    function initAutocompleteForInput(inputElement, type) {
-        let autocompleteItems = [];
-        let selectedIndex = -1;
-        const dropdown = document.createElement('div');
-        dropdown.className = 'autocomplete-dropdown';
-        inputElement.parentNode.appendChild(dropdown);
+    function handleLocationSelect(item, type) {
+        // 创建POI标记
+        if (markerManager && typeof markerManager.createPOIMarker === 'function') {
+            markerManager.createPOIMarker(item, type);
+        }
         
-        // 输入过滤逻辑
-        inputElement.addEventListener('input', function(e) {
-            const value = e.target.value.trim();
-            if (value.length < 1) {
-                dropdown.style.display = 'none';
-                return;
+        // 查找并标记最近地铁站
+        if (uniqueStopData.length && typeof findNearestStation === 'function') {
+            const nearestSubway = findNearestStation(uniqueStopData, item.wgsLat, item.wgsLon);
+            if (nearestSubway && markerManager && typeof markerManager.createSubwayMarker === 'function') {
+                markerManager.createSubwayMarker(nearestSubway, type);
             }
-            
-            // 合并POI和地铁站数据
-            const filteredPOIs = currentPOIData.filter(poi => 
-                poi.name.includes(value) || (poi.address && poi.address.includes(value))
-            );
-            const filteredStops = stopData.filter(stop => 
-                stop.name.includes(value) || stop.linename.includes(value)
-            );
-            const combinedResults = [...filteredStops, ...filteredPOIs]
-                .filter((item, index, self) => self.findIndex(i => i.name === item.name) === index)
-                .slice(0, 8);
-            
-            // 显示下拉框
-            if (combinedResults.length === 0) {
-                dropdown.innerHTML = `<div class="autocomplete-item no-results">未找到相关地点</div>`;
-                dropdown.style.display = 'block';
-                return;
-            }
-            
-            dropdown.innerHTML = combinedResults.map((poi, index) => `
-                <div class="autocomplete-item" data-index="${index}">
-                    <div class="poi-name">${highlightText(poi.name, value)}</div>
-                    <div class="poi-info">
-                        <div class="poi-type">${poi.type}</div>
-                        ${poi.address ? `<div class="poi-address">${poi.address}</div>` : ''}
-                    </div>
-                </div>
-            `).join('');
-            dropdown.style.display = 'block';
-            autocompleteItems = combinedResults; // 存储当前结果集用于键盘导航
-            
-            // 绑定点击事件
-            dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    const index = parseInt(this.getAttribute('data-index'));
-                    const poi = combinedResults[index];
-                    inputElement.value = poi.name;
-                    dropdown.style.display = 'none';
-                    map.flyTo({ center: [poi.wgsLon, poi.wgsLat], zoom: 15, duration: 1000 });
-                    createPOIMarker(map, poi, type);
-                    
-                    // 新增：查找并标记最近地铁站
-                    if (uniqueStopData.length) {
-                        const nearestSubway = findNearestStation(uniqueStopData, poi.wgsLat, poi.wgsLon);
-                        if (nearestSubway) {
-                            // 清除对应类型的旧标记
-                            if (type === 'start' && window.startSubwayMarker) {
-                                window.startSubwayMarker.remove();
-                            } else if (type === 'end' && window.endSubwayMarker) {
-                                window.endSubwayMarker.remove();
-                            }
-                            // 创建新标记
-                            const marker = markNearestStation(map, nearestSubway, type);
-                            if (type === 'start') {
-                                window.startSubwayMarker = marker;
-                            } else {
-                                window.endSubwayMarker = marker;
-                            }
-                        }
-                    }
-                });
-            });
-        });
-        
-        // 键盘导航
-        inputElement.addEventListener('keydown', function(e) {
-            if (!dropdown.style.display) return;
-            switch(e.key) {
-                case 'ArrowDown':
-                    e.preventDefault();
-                    selectedIndex = Math.min(selectedIndex + 1, autocompleteItems.length - 1);
-                    dropdown.querySelectorAll('.autocomplete-item').forEach((item, index) => {
-                        item.classList.toggle('selected', index === selectedIndex);
-                    });
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    selectedIndex = Math.max(selectedIndex - 1, -1);
-                    dropdown.querySelectorAll('.autocomplete-item').forEach((item, index) => {
-                        item.classList.toggle('selected', index === selectedIndex);
-                    });
-                    break;
-                case 'Enter':
-                    e.preventDefault();
-                    if (selectedIndex >= 0) {
-                        const poi = autocompleteItems[selectedIndex];
-                        inputElement.value = poi.name;
-                        dropdown.style.display = 'none';
-                        map.flyTo({ center: [poi.wgsLon, poi.wgsLat], zoom: 15, duration: 1000 });
-                        createPOIMarker(map, poi, type);
-                        
-                        // 新增：键盘选择时也需要标记最近地铁站
-                        if (uniqueStopData.length) {
-                            const nearestSubway = findNearestStation(uniqueStopData, poi.wgsLat, poi.wgsLon);
-                            if (nearestSubway) {
-                                if (type === 'start' && window.startSubwayMarker) {
-                                    window.startSubwayMarker.remove();
-                                } else if (type === 'end' && window.endSubwayMarker) {
-                                    window.endSubwayMarker.remove();
-                                }
-                                const marker = markNearestStation(map, nearestSubway, type);
-                                if (type === 'start') {
-                                    window.startSubwayMarker = marker;
-                                } else {
-                                    window.endSubwayMarker = marker;
-                                }
-                            }
-                        }
-                    }
-                    break;
-                case 'Escape':
-                    dropdown.style.display = 'none';
-                    break;
-            }
-        });
-        
-        // 点击外部隐藏下拉框
-        document.addEventListener('click', e => {
-            if (!inputElement.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.style.display = 'none';
-            }
-        });
+        }
     }
 
     // ========== 路线规划功能 ==========
@@ -360,6 +326,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const startInput = document.getElementById('start-station');
         const endInput = document.getElementById('end-station');
 
+        if (!planBtn || !closeResultBtn || !switchBtn || !startInput || !endInput) {
+            console.error('路线规划相关元素未找到');
+            return;
+        }
+
         // 切换起点终点
         switchBtn.addEventListener('click', function() {
             // 交换输入框的值
@@ -367,147 +338,22 @@ document.addEventListener('DOMContentLoaded', function () {
             startInput.value = endInput.value.trim();
             endInput.value = temp;
             
-            // 交换POI标记和地铁站标记
-            swapMarkers();
+            // 交换标记
+            if (markerManager && typeof markerManager.swapStartEndMarkers === 'function') {
+                markerManager.swapStartEndMarkers();
+            }
             
             this.classList.add('active');
             setTimeout(() => this.classList.remove('active'), 300);
         });
 
-        /**
-         * 交换起点和终点的所有标记
-         */
-        function swapMarkers() {
-            // 交换POI标记
-            [window.startMarker, window.endMarker] = [window.endMarker, window.startMarker];
-            
-            // 交换地铁站标记
-            [window.startSubwayMarker, window.endSubwayMarker] = [window.endSubwayMarker, window.startSubwayMarker];
-            
-            // 更新标记样式和标签
-            updateMarkerStyles();
-            updateMarkerLabels();
-        }
-
-        /**
-         * 更新标记样式
-         */
-        function updateMarkerStyles() {
-            // 更新POI标记样式
-            if (window.startMarker && window.startMarker.getElement()) {
-                const startEl = window.startMarker.getElement();
-                startEl.className = 'poi-marker start-marker';
-                startEl.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
-            }
-            
-            if (window.endMarker && window.endMarker.getElement()) {
-                const endEl = window.endMarker.getElement();
-                endEl.className = 'poi-marker end-marker';
-                endEl.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
-            }
-            
-            // 更新地铁站标记样式
-            if (window.startSubwayMarker && window.startSubwayMarker.getElement()) {
-                const startSubwayEl = window.startSubwayMarker.getElement();
-                startSubwayEl.className = 'subway-marker start-subway-marker';
-            }
-            
-            if (window.endSubwayMarker && window.endSubwayMarker.getElement()) {
-                const endSubwayEl = window.endSubwayMarker.getElement();
-                endSubwayEl.className = 'subway-marker end-subway-marker';
-            }
-        }
-
-        /**
-         * 更新标记标签
-         */
-        function updateMarkerLabels() {
-            // 更新POI标签
-            updatePOILabel(window.startMarker);
-            updatePOILabel(window.endMarker);
-            
-            // 更新地铁站标签
-            updateSubwayLabel(window.startSubwayMarker);
-            updateSubwayLabel(window.endSubwayMarker);
-        }
-
-        function updatePOILabel(marker) {
-            if (!marker || !marker._labelElement) return;
-            
-            const type = marker === window.startMarker ? 'start' : 'end';
-            const color = type === 'start' ? '#28a745' : '#dc3545';
-            
-            marker._labelElement.className = `poi-name-label ${type}-poi-label`;
-            marker._labelElement.style.borderLeftColor = color;
-        }
-
-        function updateSubwayLabel(marker) {
-            if (!marker || !marker._labelElement) return;
-            
-            const type = marker === window.startSubwayMarker ? 'start' : 'end';
-            const color = type === 'start' ? '#28a745' : '#dc3545';
-            
-            marker._labelElement.innerHTML = `
-                <span style="color: ${color}; font-weight: bold;">
-                    ${marker._stationInfo ? marker._stationInfo.name : ''}
-                </span>
-            `;
-        }
-
-        function clearMarkersAndRoutes(map, startMarker, endMarker, userLocationMarker) {
-        // 清除POI标记和标签
-        if (startMarker) {
-            startMarker.remove();
-            removePOILabel(startMarker);
-        }
-        if (endMarker) {
-            endMarker.remove();
-            removePOILabel(endMarker);
-        }
-        
-        // 清除地铁站标记和标签
-        if (window.startSubwayMarker) {
-            window.removeSubwayMarker(window.startSubwayMarker);
-            window.startSubwayMarker = null;
-        }
-        if (window.endSubwayMarker) {
-            window.removeSubwayMarker(window.endSubwayMarker);
-            window.endSubwayMarker = null;
-        }
-        
-        // 清除路线
-        if (map.getSource('route-source')) {
-            map.removeLayer('route-layer');
-            map.removeSource('route-source');
-        }
-        
-        // 清除用户位置标记
-        if (userLocationMarker) userLocationMarker.remove();
-        
-        return {
-            startMarker: null,
-            endMarker: null,
-            userLocationMarker: null
-        };
-    }
-
         // 关闭结果面板
         closeResultBtn.addEventListener('click', function() {
             document.getElementById('result-panel').style.display = 'none';
-            if (map.getSource('route-source')) {
-                map.removeLayer('route-layer');
-                map.removeSource('route-source');
+            if (typeof clearRoute === 'function') {
+                clearRoute(map);
             }
         });
-
-        // 获取路线偏好
-        function getSelectedPreference() {
-            const radios = document.querySelectorAll('input[name="route-preference"]');
-            for (const radio of radios) {
-                if (radio.checked) return radio.value;
-            }
-            return 'shortest';
-        }
 
         // 规划路线
         planBtn.addEventListener('click', function() {
@@ -520,65 +366,192 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             
-            document.getElementById('loading').style.display = 'flex';
-            
-            // 生成模拟路线
-            const routeCoordinates = generateMockRouteCoordinates(window.startMarker, window.endMarker);
-            let routeData;
-            
-            if (preference === 'shortest') {
-                routeData = {
-                    duration: '40分钟',
-                    distance: '9.8公里',
-                    transfers: '1次',
-                    polyline: routeCoordinates,
-                    steps: [
-                        { type: 'walk', title: '步行至地铁站', detail: `${startStation} → 地铁1号线（约6分钟）` },
-                        { type: 'subway', title: '乘坐地铁1号线', detail: '途经3站（约9分钟）' },
-                        { type: 'transfer', title: '换乘', detail: '换乘2号线（约4分钟）' },
-                        { type: 'subway', title: '乘坐地铁2号线', detail: '途经2站（约7分钟）' },
-                        { type: 'walk', title: '步行至目的地', detail: '地铁2号线 → 终点（约5分钟）' }
-                    ]
-                };
-            } else {
-                routeData = {
-                    duration: '45分钟',
-                    distance: '12公里',
-                    transfers: '0次',
-                    polyline: routeCoordinates,
-                    steps: [
-                        { type: 'walk', title: '步行至地铁站', detail: `${startStation} → 地铁3号线（约8分钟）` },
-                        { type: 'subway', title: '乘坐地铁3号线', detail: '途经7站（约20分钟）' },
-                        { type: 'walk', title: '步行至目的地', detail: '地铁3号线 → 终点（约6分钟）' }
-                    ]
-                };
+            if (!markerManager) {
+                alert('地图功能未初始化，请刷新页面重试');
+                return;
             }
             
-            // 模拟请求延迟
-            setTimeout(() => {
-                document.getElementById('loading').style.display = 'none';
-                renderRouteResult(routeData);
-                drawRouteLine(map, routeData.polyline);
-            }, 800);
+            const markers = markerManager.getAllMarkers();
+            if (!markers.startPOI || !markers.endPOI) {
+                alert('请选择有效的起点和终点！');
+                return;
+            }
+            
+            planRoute(markers.startPOI, markers.endPOI, preference);
         });
     }
 
-    // ========== 初始化所有功能 ==========
-    function init() {
-        initCitySwitchEvents();
-        initLocationService();
-        initAutocomplete();
-        initRoutePlanning();
-        
-        // 初始加载数据（新增去重处理）
-        Promise.all([
-            loadPOIData(currentCity).then(data => currentPOIData = data),
-            loadStopData(currentCity).then(data => {
-                stopData = data;
-                uniqueStopData = uniqueStations(data); // 去重处理
-            })
-        ]).catch(error => console.error('初始数据加载失败:', error));
+    function getSelectedPreference() {
+        const radios = document.querySelectorAll('input[name="route-preference"]');
+        for (const radio of radios) {
+            if (radio.checked) return radio.value;
+        }
+        return 'shortest';
     }
 
-    init();
+    function planRoute(startMarker, endMarker, preference) {
+        const loadingOverlay = document.getElementById('loading');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+        }
+        
+        // 生成模拟路线
+        let routeCoordinates = [];
+        if (typeof generateMockRouteCoordinates === 'function') {
+            routeCoordinates = generateMockRouteCoordinates(startMarker, endMarker);
+        }
+        
+        const routeData = generateRouteData(preference, startMarker, endMarker);
+        
+        // 模拟请求延迟
+        setTimeout(() => {
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            
+            if (typeof renderRouteResult === 'function') {
+                renderRouteResult(routeData);
+            }
+            
+            if (typeof drawRouteLine === 'function') {
+                drawRouteLine(map, routeCoordinates);
+            }
+            
+            // 显示结果面板
+            document.getElementById('result-panel').style.display = 'block';
+        }, 800);
+    }
+
+    function generateRouteData(preference, startMarker, endMarker) {
+        const startName = startMarker._data?.poi?.name || startMarker._data?.station?.name || '起点';
+        const endName = endMarker._data?.poi?.name || endMarker._data?.station?.name || '终点';
+        
+        if (preference === 'shortest') {
+            return {
+                duration: '40分钟',
+                distance: '9.8公里',
+                transfers: '1次',
+                steps: [
+                    { type: 'walk', title: '步行至地铁站', detail: `${startName} → 地铁1号线（约6分钟）` },
+                    { type: 'subway', title: '乘坐地铁1号线', detail: '途经3站（约9分钟）' },
+                    { type: 'transfer', title: '换乘', detail: '换乘2号线（约4分钟）' },
+                    { type: 'subway', title: '乘坐地铁2号线', detail: '途经2站（约7分钟）' },
+                    { type: 'walk', title: '步行至目的地', detail: `地铁2号线 → ${endName}（约5分钟）` }
+                ]
+            };
+        } else {
+            return {
+                duration: '45分钟',
+                distance: '12公里',
+                transfers: '0次',
+                steps: [
+                    { type: 'walk', title: '步行至地铁站', detail: `${startName} → 地铁3号线（约8分钟）` },
+                    { type: 'subway', title: '乘坐地铁3号线', detail: '途经7站（约20分钟）' },
+                    { type: 'walk', title: '步行至目的地', detail: `地铁3号线 → ${endName}（约6分钟）` }
+                ]
+            };
+        }
+    }
+
+    // ========== 错误处理 ==========
+    function showLocationError(message, locationInfo = null) {
+        const locateBtn = document.getElementById('locate-btn');
+        
+        if (locateBtn) {
+            locateBtn.classList.remove('locating');
+        }
+        
+        if (locationInfo) {
+            locationInfo.innerHTML = `<div><i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i> ${message}</div>`;
+            locationInfo.className = 'location-info error';
+            locationInfo.style.display = 'block';
+        }
+    }
+
+    // ========== 初始化所有功能 ==========
+    async function init() {
+        console.log('开始初始化路线规划页面...');
+        
+        try {
+            // 1. 初始化地图
+            const mapInitialized = initMap();
+            if (!mapInitialized) {
+                throw new Error('地图初始化失败');
+            }
+            
+            // 2. 初始化城市切换
+            initCitySwitch();
+            
+            // 3. 初始化定位服务
+            initLocationService();
+            
+            // 4. 加载初始数据
+            await loadCityData(currentCity);
+            
+            // 5. 初始化自动完成
+            initAutocomplete();
+            
+            // 6. 初始化路线规划
+            initRoutePlanning();
+            
+            console.log('路线规划页面初始化完成');
+            
+        } catch (error) {
+            console.error('页面初始化失败:', error);
+            alert('页面初始化失败，请刷新页面重试');
+        }
+    }
+
+    // 检查依赖是否加载完成
+    function checkDependencies() {
+        const requiredFunctions = [
+            'gcj02ToWgs84',
+            'uniqueStations',
+            'findNearestStation',
+            'loadPOIData',
+            'loadStopData'
+        ];
+        
+        const missingDeps = requiredFunctions.filter(func => typeof window[func] !== 'function');
+        
+        if (missingDeps.length > 0) {
+            console.error('缺少必要的工具函数:', missingDeps);
+            return false;
+        }
+        
+        return true;
+    }
+
+    // 等待所有依赖加载完成
+    function waitForDependencies() {
+        return new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (checkDependencies()) {
+                    clearInterval(checkInterval);
+                    resolve(true);
+                }
+            }, 100);
+            
+            // 10秒后超时
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                console.error('依赖加载超时');
+                resolve(false);
+            }, 10000);
+        });
+    }
+
+    // 启动应用
+    async function startApp() {
+        const depsReady = await waitForDependencies();
+        
+        if (depsReady) {
+            init();
+        } else {
+            alert('页面资源加载失败，请刷新页面重试');
+        }
+    }
+
+    // 启动应用
+    startApp();
 });

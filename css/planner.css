@@ -1,4 +1,19 @@
-/* 全局样式重置与基础配置 */
+/* ======================
+   CSS结构说明
+   ======================
+   1. 全局样式与变量定义
+   2. 布局容器样式
+   3. 功能面板样式
+   4. 表单元素样式
+   5. 地图标记与标签样式
+   6. 弹窗与下拉框样式
+   7. 路线结果样式
+   8. 动画与响应式设计
+   ====================== */
+
+/* ======================
+   1. 全局样式与变量定义
+   ====================== */
 * {
     margin: 0;
     padding: 0;
@@ -7,21 +22,29 @@
 }
 
 :root {
-    /* 主题色 */
+    /* 主色调 - 用于品牌标识 */
     --primary-color: #1a2a6c;
     --primary-light: #3a4a9c;
     --primary-blue: #007bff;
-    --success-color: #28a745;
-    --danger-color: #dc3545;
-    --warning-color: #ffc107;
+    
+    /* 功能色 - 用于状态反馈 */
+    --success-color: #28a745;   /* 成功/起点 */
+    --danger-color: #dc3545;    /* 危险/终点 */
+    --warning-color: #ffc107;   /* 警告/换乘 */
+    
+    /* 中性色 - 用于背景、边框、文字 */
     --gray-light: #f5f7fa;
     --gray: #e1e4e8;
     --gray-dark: #666;
+    
+    /* 视觉层次 - 阴影和圆角 */
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
+    
+    /* 过渡动画 */
     --transition: all 0.3s ease;
 }
 
@@ -31,14 +54,18 @@ body {
     overflow: hidden;
 }
 
-/* 导航栏容器 */
+/* ======================
+   2. 布局容器样式
+   ====================== */
+
+/* 导航栏 - 固定顶部 */
 #nav-container {
     height: 70px;
     background-color: rgba(0, 0, 0, 0.95);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
-/* 主容器布局 */
+/* 主容器 - 地图+面板并排布局 */
 .map-info-container {
     display: flex;
     height: calc(100vh - 70px);
@@ -47,7 +74,7 @@ body {
     position: relative;
 }
 
-/* 地图容器 */
+/* 地图容器 - 占据剩余空间 */
 .map-container {
     flex: 1;
     position: relative;
@@ -61,7 +88,7 @@ body {
     overflow: hidden;
 }
 
-/* 右侧信息面板 */
+/* 右侧信息面板 - 固定宽度，可滚动 */
 .info-panel {
     width: 380px;
     display: flex;
@@ -72,6 +99,10 @@ body {
     scrollbar-width: thin;
     scrollbar-color: var(--gray) var(--gray-light);
 }
+
+/* ======================
+   3. 功能面板样式
+   ====================== */
 
 /* 面板标题区域 */
 .panel-header {
@@ -106,6 +137,73 @@ body {
     flex-shrink: 0;
 }
 
+/* 城市切换区域 - 地图上的控制面板 */
+.city-switch-area {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 15px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+
+.switch-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--primary-blue);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.switch-label i {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+.city-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.city-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--gray);
+    background: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: var(--transition);
+    border-radius: var(--radius-sm);
+    touch-action: manipulation;
+}
+
+.city-btn.active {
+    background: var(--primary-blue);
+    color: #fff;
+    border-color: var(--primary-blue);
+}
+
+.city-btn:hover:not(.active) {
+    background: var(--gray-light);
+    border-color: #ccc;
+}
+
+.current-city {
+    color: var(--primary-blue);
+    font-weight: 500;
+    font-size: 13px;
+}
+
+/* ======================
+   4. 表单元素样式
+   ====================== */
+
+/* 表单组 */
 .form-group {
     margin-bottom: 20px;
     position: relative;
@@ -115,6 +213,7 @@ body {
     margin-bottom: 15px;
 }
 
+/* 表单标签 */
 .form-group label {
     display: flex;
     align-items: center;
@@ -125,6 +224,7 @@ body {
     font-size: 14px;
 }
 
+/* 输入框 */
 .form-group input {
     width: 100%;
     padding: 12px 15px;
@@ -157,7 +257,8 @@ body {
     gap: 8px;
 }
 
-/* 定位按钮样式 */
+/* 按钮组件 */
+/* 定位按钮 */
 .location-btn {
     border: none;
     cursor: pointer;
@@ -184,29 +285,6 @@ body {
 .inline-location-btn.locating {
     color: var(--primary-blue);
     animation: spin 1s linear infinite;
-}
-
-/* 定位提示信息 */
-.location-info {
-    margin-top: 8px;
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.location-info.success {
-    background-color: rgba(40, 167, 69, 0.1);
-    color: var(--success-color);
-    border: 1px solid rgba(40, 167, 69, 0.2);
-}
-
-.location-info.error {
-    background-color: rgba(220, 53, 69, 0.1);
-    color: var(--danger-color);
-    border: 1px solid rgba(220, 53, 69, 0.2);
 }
 
 /* 切换起点终点按钮 */
@@ -239,6 +317,65 @@ body {
 .switch-btn.active {
     transform: scale(0.98);
     background-color: #e8f0fe;
+}
+
+/* 主按钮 */
+.primary-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    touch-action: manipulation;
+}
+
+.primary-btn:hover {
+    background: linear-gradient(135deg, #2a3a8c, #4a5aac);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(26, 42, 108, 0.3);
+}
+
+.primary-btn:active {
+    transform: translateY(0);
+}
+
+.primary-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 定位提示信息 */
+.location-info {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.location-info.success {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+}
+
+.location-info.error {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+    border: 1px solid rgba(220, 53, 69, 0.2);
 }
 
 /* 规划偏好选项 */
@@ -317,43 +454,290 @@ body {
     user-select: none;
 }
 
-/* 主按钮样式 */
-.primary-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 16px;
-    font-weight: 600;
+/* ======================
+   5. 地图标记与标签样式
+   ====================== */
+
+/* 地图标记基础样式 */
+.marker-base {
     cursor: pointer;
-    transition: var(--transition);
+    transition: transform 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    touch-action: manipulation;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 10;
 }
 
-.primary-btn:hover {
-    background: linear-gradient(135deg, #2a3a8c, #4a5aac);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(26, 42, 108, 0.3);
+.marker-base:hover {
+    transform: scale(1.2);
+    z-index: 100 !important;
 }
 
-.primary-btn:active {
-    transform: translateY(0);
+/* POI标记 */
+.poi-marker {
+    composes: marker-base;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
 }
 
-.primary-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+.poi-marker i {
+    color: white;
+    font-size: 12px;
 }
 
-/* 路线结果面板 */
+.start-marker {
+    background-color: var(--success-color);
+}
+
+.end-marker {
+    background-color: var(--danger-color);
+}
+
+/* 地铁站标记 */
+.subway-marker {
+    composes: marker-base;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border-width: 3px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.subway-marker i {
+    color: white;
+    font-size: 16px;
+}
+
+.start-subway-marker {
+    background-color: var(--success-color) !important;
+}
+
+.end-subway-marker {
+    background-color: var(--danger-color) !important;
+}
+
+/* 用户位置标记 */
+.user-location-marker {
+    width: 20px;
+    height: 20px;
+    background: var(--primary-blue);
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
+    animation: user-pulse 2s infinite;
+}
+
+/* 地图标签基础样式 */
+.map-label-base {
+    background-color: rgba(255, 255, 255, 0.95);
+    padding: 4px 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    font-size: 12px;
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    border: 1px solid #eee;
+    pointer-events: none;
+    z-index: 9;
+    transition: all 0.3s ease;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 地铁站标签 */
+.subway-station-label {
+    composes: map-label-base;
+}
+
+/* POI标签 */
+.poi-name-label {
+    composes: map-label-base;
+    border-left: 3px solid;
+}
+
+.start-poi-label {
+    border-left-color: var(--success-color);
+}
+
+.end-poi-label {
+    border-left-color: var(--danger-color);
+}
+
+/* 距离标签样式 */
+.distance-label {
+    pointer-events: none;
+}
+
+.distance-content {
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    font-size: 12px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.distance-content i {
+    color: var(--gray-dark);
+    font-size: 15px;
+}
+
+/* ======================
+   6. 弹窗与下拉框样式
+   ====================== */
+
+/* POI弹窗 */
+.poi-popup {
+    min-width: 220px;
+    padding: 8px 0;
+}
+
+.poi-popup h3 {
+    font-size: 16px;
+    color: #333;
+    margin: 0 12px 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+}
+
+.poi-popup-type {
+    background: #e8f0fe;
+    color: var(--primary-color);
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+.poi-popup-address {
+    color: var(--gray-dark);
+    font-size: 14px;
+    margin-bottom: 6px;
+}
+
+.poi-popup-coords {
+    color: #999;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+/* 地铁站弹窗 */
+.subway-popup {
+    min-width: 200px;
+    padding: 10px;
+}
+
+.subway-popup h3 {
+    font-size: 16px;
+    color: var(--primary-color);
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+}
+
+.subway-popup p {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+/* 自动完成下拉框 */
+.autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid var(--gray);
+    border-radius: var(--radius-md);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: var(--shadow-md);
+    margin-top: 4px;
+    display: none;
+    scrollbar-width: thin;
+}
+
+.autocomplete-item {
+    padding: 12px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background-color: var(--gray-light);
+}
+
+.autocomplete-item.no-results {
+    color: var(--gray-dark);
+    cursor: default;
+    text-align: center;
+    padding: 20px;
+}
+
+.autocomplete-item.no-results:hover {
+    background-color: white;
+}
+
+.poi-name {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.poi-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+}
+
+.poi-type {
+    background: #e8f0fe;
+    color: var(--primary-color);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+}
+
+.poi-address {
+    color: var(--gray-dark);
+    flex: 1;
+    margin-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.highlight {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 1px 2px;
+    border-radius: 2px;
+}
+
+/* ======================
+   7. 路线结果样式
+   ====================== */
+
+/* 结果面板容器 */
 .result-panel {
     background: white;
     border-radius: var(--radius-lg);
@@ -423,7 +807,7 @@ body {
     font-size: 14px;
 }
 
-/* 路线步骤样式 */
+/* 路线步骤 */
 .route-step {
     display: flex;
     align-items: flex-start;
@@ -524,140 +908,9 @@ body {
     color: var(--gray-dark);
 }
 
-/* 地图标记样式 */
-.user-location-marker {
-    width: 20px;
-    height: 20px;
-    background: var(--primary-blue);
-    border: 3px solid white;
-    border-radius: 50%;
-    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.4);
-    animation: user-pulse 2s infinite;
-}
-
-.poi-marker {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    cursor: pointer;
-    z-index: 10;
-}
-
-.start-marker {
-    background-color: var(--success-color);
-}
-
-.end-marker {
-    background-color: var(--danger-color);
-}
-
-.poi-marker i {
-    color: white;
-    font-size: 12px;
-}
-
-/* POI弹窗样式 */
-.poi-popup {
-    min-width: 220px;
-    padding: 8px 0;
-}
-
-.poi-popup h3 {
-    font-size: 16px;
-    color: #333;
-    margin: 0 12px 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eee;
-}
-
-.poi-popup-type {
-    background: #e8f0fe;
-    color: var(--primary-color);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    display: inline-block;
-    margin-bottom: 8px;
-}
-
-.poi-popup-address {
-    color: var(--gray-dark);
-    font-size: 14px;
-    margin-bottom: 6px;
-}
-
-.poi-popup-coords {
-    color: #999;
-    font-size: 12px;
-    font-family: monospace;
-}
-
-/* 城市切换区域 */
-.city-switch-area {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 100;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: 15px;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
-}
-
-.switch-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--primary-blue);
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-}
-
-.switch-label i {
-    margin-right: 8px;
-    font-size: 16px;
-}
-
-.city-buttons {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.city-btn {
-    padding: 6px 12px;
-    border: 1px solid var(--gray);
-    background: white;
-    cursor: pointer;
-    font-size: 14px;
-    transition: var(--transition);
-    border-radius: var(--radius-sm);
-    touch-action: manipulation;
-}
-
-.city-btn.active {
-    background: var(--primary-blue);
-    color: #fff;
-    border-color: var(--primary-blue);
-}
-
-.city-btn:hover:not(.active) {
-    background: var(--gray-light);
-    border-color: #ccc;
-}
-
-.current-city {
-    color: var(--primary-blue);
-    font-weight: 500;
-    font-size: 13px;
-}
+/* ======================
+   8. 动画与响应式设计
+   ====================== */
 
 /* 加载提示层 */
 .loading-overlay {
@@ -690,111 +943,6 @@ body {
     font-size: 16px;
     opacity: 0.9;
     animation: pulse 1.5s infinite;
-}
-
-/* 自动完成下拉框 */
-.autocomplete-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid var(--gray);
-    border-radius: var(--radius-md);
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: var(--shadow-md);
-    margin-top: 4px;
-    display: none;
-    scrollbar-width: thin;
-}
-
-.autocomplete-item {
-    padding: 12px 15px;
-    cursor: pointer;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s;
-}
-
-.autocomplete-item:last-child {
-    border-bottom: none;
-}
-
-.autocomplete-item:hover,
-.autocomplete-item.selected {
-    background-color: var(--gray-light);
-}
-
-.autocomplete-item.no-results {
-    color: var(--gray-dark);
-    cursor: default;
-    text-align: center;
-    padding: 20px;
-}
-
-.autocomplete-item.no-results:hover {
-    background-color: white;
-}
-
-.poi-name {
-    font-weight: 500;
-    color: #333;
-    margin-bottom: 4px;
-    font-size: 14px;
-}
-
-.poi-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 12px;
-}
-
-.poi-type {
-    background: #e8f0fe;
-    color: var(--primary-color);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-}
-
-.poi-address {
-    color: var(--gray-dark);
-    flex: 1;
-    margin-left: 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.highlight {
-    background-color: #fff3cd;
-    color: #856404;
-    padding: 1px 2px;
-    border-radius: 2px;
-}
-
-/* 距离标签样式 */
-.distance-label {
-    pointer-events: none;
-}
-
-.distance-content {
-    background-color: rgba(255, 255, 255, 0.9);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    font-size: 12px;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.distance-content i {
-    color: var(--gray-dark);
-    font-size: 15px;
 }
 
 /* 动画定义 */
@@ -845,252 +993,4 @@ body {
 .result-content::-webkit-scrollbar-thumb:hover,
 .autocomplete-dropdown::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
-}
-
-/* 响应式布局适配 */
-@media (max-width: 1024px) {
-    .map-info-container {
-        flex-direction: column;
-        height: auto;
-        min-height: calc(100vh - 70px);
-    }
-    
-    .info-panel {
-        width: 100%;
-        height: 450px;
-        gap: 15px;
-    }
-    
-    .map-container {
-        height: 450px;
-    }
-    
-    .result-stats {
-        flex-direction: column;
-        gap: 15px;
-        padding: 15px 20px;
-    }
-    
-    .stat-item {
-        justify-content: flex-start;
-    }
-}
-
-@media (max-width: 768px) {
-    .map-info-container {
-        padding: 10px;
-        gap: 15px;
-    }
-    
-    .info-panel {
-        height: 400px;
-    }
-    
-    .city-switch-area {
-        top: 10px;
-        left: 10px;
-        padding: 10px;
-    }
-    
-    .city-buttons {
-        flex-wrap: wrap;
-    }
-    
-    .radio-options {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    
-    .autocomplete-dropdown {
-        max-height: 200px;
-    }
-    
-    .poi-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .poi-address {
-        margin-left: 0;
-        margin-top: 4px;
-    }
-    
-    .result-content {
-        max-height: 250px;
-    }
-}
-
-@media (max-width: 480px) {
-    .panel-header, .route-form, .result-panel {
-        padding: 15px;
-    }
-    
-    .primary-btn {
-        padding: 12px;
-        font-size: 14px;
-    }
-    
-    .city-switch-area {
-        max-width: calc(100% - 20px);
-    }
-}
-
-/* ========== 新增：地铁站标记样式 ========== */
-.subway-marker {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background-color: #1a2a6c;
-    border: 3px solid white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-}
-
-.start-subway-marker {
-    background-color: #28a745;
-}
-
-.end-subway-marker {
-    background-color: #dc3545;
-}
-
-.subway-marker i {
-    color: white;
-    font-size: 16px;
-}
-
-/* ========== 新增：地铁站名称注记 ========== */
-.subway-station-label {
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 4px 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    white-space: nowrap;
-    border: 1px solid #eee;
-}
-
-.subway-station-label span {
-    display: inline-block;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* ========== 新增：POI名称注记 ========== */
-.poi-name-label {
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 4px 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    white-space: nowrap;
-    border: 1px solid #eee;
-}
-
-.start-poi-label {
-    border-left: 3px solid #28a745;
-}
-
-.end-poi-label {
-    border-left: 3px solid #dc3545;
-}
-
-
-
-/* ========== 优化：弹窗样式 ========== */
-.subway-popup {
-    min-width: 200px;
-    padding: 10px;
-}
-
-.subway-popup h3 {
-    font-size: 16px;
-    color: #1a2a6c;
-    margin-bottom: 6px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eee;
-}
-
-.subway-popup p {
-    font-size: 13px;
-    color: #666;
-    margin-bottom: 4px;
-}
-
-.subway-station-label {
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 4px 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    white-space: nowrap;
-    border: 1px solid #eee;
-    pointer-events: none;
-    z-index: 9;
-    transition: all 0.3s ease;
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.subway-station-label:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 100;
-}
-
-/* POI名称标签样式优化 */
-.poi-name-label {
-    background-color: rgba(255, 255, 255, 0.95);
-    padding: 4px 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    white-space: nowrap;
-    border-left: 3px solid;
-    pointer-events: none;
-    z-index: 9;
-    transition: all 0.3s ease;
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.start-poi-label {
-    border-left-color: #28a745;
-}
-
-.end-poi-label {
-    border-left-color: #dc3545;
-}
-
-/* 地铁站标记悬停效果 */
-.subway-marker {
-    cursor: pointer;
-    transition: transform 0.3s ease;
-}
-
-.subway-marker:hover {
-    transform: scale(1.2);
-    z-index: 100 !important;
-}
-
-.start-subway-marker {
-    background-color: #28a745 !important;
-}
-
-.end-subway-marker {
-    background-color: #dc3545 !important;
 }
