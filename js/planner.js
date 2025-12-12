@@ -10,9 +10,12 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentCity = 'nj';
     let currentPOIData = [];
     let stopData = [];
+    let uniqueStopData = []; // 新增：去重后的地铁站数据
     window.startMarker = null;
     window.endMarker = null;
     window.userLocationMarker = null;
+    window.startSubwayMarker = null; // 新增：起点最近地铁站标记
+    window.endSubwayMarker = null;   // 新增：终点最近地铁站标记
 
     // ========== 地图初始化 ==========
     const map = new mapboxgl.Map({
@@ -67,16 +70,30 @@ document.addEventListener('DOMContentLoaded', function () {
         currentCity = cityCode;
         map.flyTo({ center: cityConfig[cityCode].center, zoom: cityConfig[cityCode].zoom, duration: 1000 });
         
-        // 清除标记和路线
-        const cleared = clearMarkersAndRoutes(map, window.startMarker, window.endMarker, window.userLocationMarker);
+        // 清除所有标记和路线
+        const cleared = clearMarkersAndRoutes(
+            map, 
+            window.startMarker, 
+            window.endMarker, 
+            window.userLocationMarker
+        );
         window.startMarker = cleared.startMarker;
         window.endMarker = cleared.endMarker;
         window.userLocationMarker = cleared.userLocationMarker;
         
-        // 加载数据
+        // 新增：清除地铁标记
+        if (window.startSubwayMarker) window.startSubwayMarker.remove();
+        if (window.endSubwayMarker) window.endSubwayMarker.remove();
+        window.startSubwayMarker = null;
+        window.endSubwayMarker = null;
+        
+        // 加载数据（新增去重处理）
         Promise.all([
             loadPOIData(currentCity).then(data => currentPOIData = data),
-            loadStopData(currentCity).then(data => stopData = data)
+            loadStopData(currentCity).then(data => {
+                stopData = data;
+                uniqueStopData = uniqueStations(data); // 去重处理
+            })
         ]).catch(error => console.error('数据加载失败:', error));
     }
 
@@ -161,6 +178,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     document.getElementById('start-station').value = '当前位置';
                     locationInfo.innerHTML = `<i class="fas fa-check-circle"></i> 定位成功 (精度: ${Math.round(accuracy)}m)`;
                     locationInfo.className = 'location-info success';
+
+                    // 新增：查找并标记最近的地铁站（作为起点）
+                    if (uniqueStopData.length) {
+                        const nearestSubway = findNearestStation(uniqueStopData, wgsLat, wgsLng);
+                        if (nearestSubway) {
+                            // 清除旧标记
+                            if (window.startSubwayMarker) window.startSubwayMarker.remove();
+                            // 创建新标记
+                            window.startSubwayMarker = markNearestStation(map, nearestSubway, 'start');
+                            // 显示提示
+                            locationInfo.innerHTML += `<div style="margin-top: 4px;">最近地铁站: ${nearestSubway.name} (${(nearestSubway.distance / 1000).toFixed(2)}公里)</div>`;
+                        }
+                    }
                 } else {
                     const errorMessage = `定位失败: ${result.message}`;
                     let solutions = '';
@@ -227,6 +257,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 </div>
             `).join('');
             dropdown.style.display = 'block';
+            autocompleteItems = combinedResults; // 存储当前结果集用于键盘导航
             
             // 绑定点击事件
             dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
@@ -237,6 +268,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     dropdown.style.display = 'none';
                     map.flyTo({ center: [poi.wgsLon, poi.wgsLat], zoom: 15, duration: 1000 });
                     createPOIMarker(map, poi, type);
+                    
+                    // 新增：查找并标记最近地铁站
+                    if (uniqueStopData.length) {
+                        const nearestSubway = findNearestStation(uniqueStopData, poi.wgsLat, poi.wgsLon);
+                        if (nearestSubway) {
+                            // 清除对应类型的旧标记
+                            if (type === 'start' && window.startSubwayMarker) {
+                                window.startSubwayMarker.remove();
+                            } else if (type === 'end' && window.endSubwayMarker) {
+                                window.endSubwayMarker.remove();
+                            }
+                            // 创建新标记
+                            const marker = markNearestStation(map, nearestSubway, type);
+                            if (type === 'start') {
+                                window.startSubwayMarker = marker;
+                            } else {
+                                window.endSubwayMarker = marker;
+                            }
+                        }
+                    }
                 });
             });
         });
@@ -267,6 +318,24 @@ document.addEventListener('DOMContentLoaded', function () {
                         dropdown.style.display = 'none';
                         map.flyTo({ center: [poi.wgsLon, poi.wgsLat], zoom: 15, duration: 1000 });
                         createPOIMarker(map, poi, type);
+                        
+                        // 新增：键盘选择时也需要标记最近地铁站
+                        if (uniqueStopData.length) {
+                            const nearestSubway = findNearestStation(uniqueStopData, poi.wgsLat, poi.wgsLon);
+                            if (nearestSubway) {
+                                if (type === 'start' && window.startSubwayMarker) {
+                                    window.startSubwayMarker.remove();
+                                } else if (type === 'end' && window.endSubwayMarker) {
+                                    window.endSubwayMarker.remove();
+                                }
+                                const marker = markNearestStation(map, nearestSubway, type);
+                                if (type === 'start') {
+                                    window.startSubwayMarker = marker;
+                                } else {
+                                    window.endSubwayMarker = marker;
+                                }
+                            }
+                        }
                     }
                     break;
                 case 'Escape':
@@ -293,18 +362,134 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // 切换起点终点
         switchBtn.addEventListener('click', function() {
+            // 交换输入框的值
             const temp = startInput.value.trim();
             startInput.value = endInput.value.trim();
             endInput.value = temp;
             
-            // 切换标记
-            const tempMarker = window.startMarker;
-            window.startMarker = window.endMarker;
-            window.endMarker = tempMarker;
+            // 交换POI标记和地铁站标记
+            swapMarkers();
             
             this.classList.add('active');
             setTimeout(() => this.classList.remove('active'), 300);
         });
+
+        /**
+         * 交换起点和终点的所有标记
+         */
+        function swapMarkers() {
+            // 交换POI标记
+            [window.startMarker, window.endMarker] = [window.endMarker, window.startMarker];
+            
+            // 交换地铁站标记
+            [window.startSubwayMarker, window.endSubwayMarker] = [window.endSubwayMarker, window.startSubwayMarker];
+            
+            // 更新标记样式和标签
+            updateMarkerStyles();
+            updateMarkerLabels();
+        }
+
+        /**
+         * 更新标记样式
+         */
+        function updateMarkerStyles() {
+            // 更新POI标记样式
+            if (window.startMarker && window.startMarker.getElement()) {
+                const startEl = window.startMarker.getElement();
+                startEl.className = 'poi-marker start-marker';
+                startEl.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+            }
+            
+            if (window.endMarker && window.endMarker.getElement()) {
+                const endEl = window.endMarker.getElement();
+                endEl.className = 'poi-marker end-marker';
+                endEl.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+            }
+            
+            // 更新地铁站标记样式
+            if (window.startSubwayMarker && window.startSubwayMarker.getElement()) {
+                const startSubwayEl = window.startSubwayMarker.getElement();
+                startSubwayEl.className = 'subway-marker start-subway-marker';
+            }
+            
+            if (window.endSubwayMarker && window.endSubwayMarker.getElement()) {
+                const endSubwayEl = window.endSubwayMarker.getElement();
+                endSubwayEl.className = 'subway-marker end-subway-marker';
+            }
+        }
+
+        /**
+         * 更新标记标签
+         */
+        function updateMarkerLabels() {
+            // 更新POI标签
+            updatePOILabel(window.startMarker);
+            updatePOILabel(window.endMarker);
+            
+            // 更新地铁站标签
+            updateSubwayLabel(window.startSubwayMarker);
+            updateSubwayLabel(window.endSubwayMarker);
+        }
+
+        function updatePOILabel(marker) {
+            if (!marker || !marker._labelElement) return;
+            
+            const type = marker === window.startMarker ? 'start' : 'end';
+            const color = type === 'start' ? '#28a745' : '#dc3545';
+            
+            marker._labelElement.className = `poi-name-label ${type}-poi-label`;
+            marker._labelElement.style.borderLeftColor = color;
+        }
+
+        function updateSubwayLabel(marker) {
+            if (!marker || !marker._labelElement) return;
+            
+            const type = marker === window.startSubwayMarker ? 'start' : 'end';
+            const color = type === 'start' ? '#28a745' : '#dc3545';
+            
+            marker._labelElement.innerHTML = `
+                <span style="color: ${color}; font-weight: bold;">
+                    ${marker._stationInfo ? marker._stationInfo.name : ''}
+                </span>
+            `;
+        }
+
+        function clearMarkersAndRoutes(map, startMarker, endMarker, userLocationMarker) {
+        // 清除POI标记和标签
+        if (startMarker) {
+            startMarker.remove();
+            removePOILabel(startMarker);
+        }
+        if (endMarker) {
+            endMarker.remove();
+            removePOILabel(endMarker);
+        }
+        
+        // 清除地铁站标记和标签
+        if (window.startSubwayMarker) {
+            window.removeSubwayMarker(window.startSubwayMarker);
+            window.startSubwayMarker = null;
+        }
+        if (window.endSubwayMarker) {
+            window.removeSubwayMarker(window.endSubwayMarker);
+            window.endSubwayMarker = null;
+        }
+        
+        // 清除路线
+        if (map.getSource('route-source')) {
+            map.removeLayer('route-layer');
+            map.removeSource('route-source');
+        }
+        
+        // 清除用户位置标记
+        if (userLocationMarker) userLocationMarker.remove();
+        
+        return {
+            startMarker: null,
+            endMarker: null,
+            userLocationMarker: null
+        };
+    }
 
         // 关闭结果面板
         closeResultBtn.addEventListener('click', function() {
@@ -385,10 +570,13 @@ document.addEventListener('DOMContentLoaded', function () {
         initAutocomplete();
         initRoutePlanning();
         
-        // 初始加载数据
+        // 初始加载数据（新增去重处理）
         Promise.all([
             loadPOIData(currentCity).then(data => currentPOIData = data),
-            loadStopData(currentCity).then(data => stopData = data)
+            loadStopData(currentCity).then(data => {
+                stopData = data;
+                uniqueStopData = uniqueStations(data); // 去重处理
+            })
         ]).catch(error => console.error('初始数据加载失败:', error));
     }
 

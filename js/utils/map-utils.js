@@ -82,39 +82,102 @@ function generateMockRouteCoordinates(startMarker, endMarker) {
     return coordinates;
 }
 
-// 创建POI标记
 function createPOIMarker(map, poi, type) {
     // 移除旧标记
-    if (type === 'start' && window.startMarker) window.startMarker.remove();
-    if (type === 'end' && window.endMarker) window.endMarker.remove();
+    if (type === 'start' && window.startMarker) {
+        window.startMarker.remove();
+        // 同时移除POI名称标签
+        removePOILabel(window.startMarker);
+    } else if (type === 'end' && window.endMarker) {
+        window.endMarker.remove();
+        removePOILabel(window.endMarker);
+    }
     
-    // 创建新标记元素
+    // 创建标记
     const el = document.createElement('div');
-    el.className = `poi-marker ${type === 'start' ? 'start-marker' : 'end-marker'}`;
-    el.innerHTML = `<i class="fas ${type === 'start' ? 'fa-location-arrow' : 'fa-map-marker-alt'}"></i>`;
+    el.className = `poi-marker ${type}-marker`;
+    el.innerHTML = `<i class="fas fa-map-marker-alt"></i>`;
     
-    // 创建标记并添加到地图
     const marker = new mapboxgl.Marker(el)
         .setLngLat([poi.wgsLon, poi.wgsLat])
         .addTo(map);
     
-    // 绑定弹窗
-    const popup = new mapboxgl.Popup({ offset: 25, closeButton: true })
+    // 存储POI信息
+    marker._poiInfo = poi;
+    marker._type = type;
+    
+    // 添加弹窗
+    const popup = new mapboxgl.Popup({ offset: 25 })
         .setHTML(`
             <div class="poi-popup">
                 <h3>${poi.name}</h3>
-                <p><span class="poi-popup-type">${poi.type}</span></p>
-                <p class="poi-popup-address">${poi.address || '无详细地址'}</p>
-                <p class="poi-popup-coords">坐标: ${poi.wgsLon.toFixed(6)}, ${poi.wgsLat.toFixed(6)}</p>
+                <div class="poi-popup-type">${poi.type}</div>
+                ${poi.address ? `<div class="poi-popup-address">${poi.address}</div>` : ''}
+                <div class="poi-popup-coords">${poi.wgsLon.toFixed(6)}, ${poi.wgsLat.toFixed(6)}</div>
             </div>
         `);
     
-    el.addEventListener('click', () => popup.addTo(map));
+    marker.setPopup(popup);
     
-    // 保存标记引用
-    marker.coordinates = [poi.wgsLon, poi.wgsLat];
-    if (type === 'start') window.startMarker = marker;
-    if (type === 'end') window.endMarker = marker;
+    // 添加POI名称标签
+    addPOILabel(map, marker, poi, type);
+    
+    // 更新全局引用
+    if (type === 'start') {
+        window.startMarker = marker;
+    } else {
+        window.endMarker = marker;
+    }
     
     return marker;
+}
+
+/**
+ * 为POI添加名称标签
+ */
+function addPOILabel(map, marker, poi, type) {
+    const labelEl = document.createElement('div');
+    labelEl.className = `poi-name-label ${type}-poi-label`;
+    labelEl.innerHTML = `
+        <span>${poi.name}</span>
+    `;
+    
+    marker._labelElement = labelEl;
+    updatePOILabelPosition(marker);
+    
+    map.on('move', () => updatePOILabelPosition(marker));
+}
+
+/**
+ * 更新POI标签位置
+ */
+function updatePOILabelPosition(marker) {
+    if (!marker._labelElement) return;
+    
+    const map = marker._map;
+    const lngLat = marker.getLngLat();
+    const pos = map.project(lngLat);
+    
+    const labelEl = marker._labelElement;
+    labelEl.style.position = 'absolute';
+    labelEl.style.left = `${pos.x}px`;
+    labelEl.style.top = `${pos.y - 35}px`;
+    labelEl.style.transform = 'translateX(-50%)';
+    labelEl.style.padding = '3px 8px';
+    labelEl.style.fontSize = '11px';
+    labelEl.style.zIndex = '9';
+    
+    if (!labelEl.parentNode) {
+        const mapContainer = map.getContainer();
+        mapContainer.appendChild(labelEl);
+    }
+}
+
+/**
+ * 移除POI标签
+ */
+function removePOILabel(marker) {
+    if (marker && marker._labelElement && marker._labelElement.parentNode) {
+        marker._labelElement.parentNode.removeChild(marker._labelElement);
+    }
 }
