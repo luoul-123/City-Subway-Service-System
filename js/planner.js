@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('地图加载完成');
                 
                 // 配置中文字体
-                map.getStyle().layers.forEach(layer => {
+                const layers = map.getStyle().layers;
+                layers.forEach(layer => {
                     if (layer.type === 'symbol') {
                         map.setLayoutProperty(layer.id, 'text-font', ['Noto Sans CJK SC Regular']);
                     }
@@ -52,15 +53,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     console.warn('initAccuracyLayer函数未定义');
                 }
+                
+                // 初始化标记管理器
+                if (typeof MarkerManager === 'function') {
+                    markerManager = new MarkerManager(map);
+                    console.log('标记管理器初始化成功');
+                } else {
+                    console.error('MarkerManager类未定义，请检查marker-utils.js是否正确加载');
+                }
             });
 
-            // 初始化标记管理器
-            if (typeof MarkerManager === 'function') {
-                markerManager = new MarkerManager(map);
-                console.log('标记管理器初始化成功');
-            } else {
-                console.error('MarkerManager类未定义，请检查marker-utils.js是否正确加载');
-            }
+            // 地图加载错误处理
+            map.on('error', function(e) {
+                console.error('地图加载错误:', e.error);
+            });
 
             return true;
         } catch (error) {
@@ -151,6 +157,16 @@ document.addEventListener('DOMContentLoaded', function () {
     // ========== 数据加载 ==========
     async function loadCityData(cityCode) {
         try {
+            console.log(`开始加载${cityConfig[cityCode].name}数据...`);
+            
+            // 检查必要的函数是否可用
+            if (typeof loadPOIData !== 'function') {
+                throw new Error('loadPOIData函数未定义');
+            }
+            if (typeof loadStopData !== 'function') {
+                throw new Error('loadStopData函数未定义');
+            }
+            
             const [poiData, stopDataResult] = await Promise.all([
                 loadPOIData(cityCode),
                 loadStopData(cityCode)
@@ -262,16 +278,20 @@ document.addEventListener('DOMContentLoaded', function () {
             // 查找并标记最近的地铁站
             findAndMarkNearestSubway(wgsLat, wgsLng, 'start', locationInfo);
         } else {
-            showLocationError(`定位失败: ${result.message}`, locationInfo);
+            showLocationError(`定位失败: ${result.message}`);
         }
     }
 
-    function findAndMarkNearestSubway(lat, lng, type, locationInfo) {
+    async function findAndMarkNearestSubway(lat, lng, type, locationInfo) {
         if (uniqueStopData.length && typeof findNearestStation === 'function') {
             const nearestSubway = findNearestStation(uniqueStopData, lat, lng);
             if (nearestSubway && markerManager && typeof markerManager.createSubwayMarker === 'function') {
-                markerManager.createSubwayMarker(nearestSubway, type);
-                locationInfo.innerHTML += `<div style="margin-top: 4px;">最近地铁站: ${nearestSubway.name} (${(nearestSubway.distance / 1000).toFixed(2)}公里)</div>`;
+                try {
+                    await markerManager.createSubwayMarker(nearestSubway, type);
+                    locationInfo.innerHTML += `<div style="margin-top: 4px;">最近地铁站: ${nearestSubway.name} (${(nearestSubway.distance / 1000).toFixed(2)}公里)</div>`;
+                } catch (error) {
+                    console.error('创建最近地铁站标记失败:', error);
+                }
             }
         }
     }
@@ -303,17 +323,40 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function handleLocationSelect(item, type) {
+    async function handleLocationSelect(item, type) {
+        console.log(`选择${type}:`, item.name);
+        
+        // 检查标记管理器是否已初始化
+        if (!markerManager) {
+            console.warn('标记管理器未初始化，正在尝试重新初始化');
+            if (typeof MarkerManager === 'function') {
+                markerManager = new MarkerManager(map);
+            } else {
+                console.error('无法初始化标记管理器');
+                return;
+            }
+        }
+        
         // 创建POI标记
         if (markerManager && typeof markerManager.createPOIMarker === 'function') {
-            markerManager.createPOIMarker(item, type);
+            try {
+                await markerManager.createPOIMarker(item, type);
+                console.log(`${type} POI标记创建成功`);
+            } catch (error) {
+                console.error(`创建${type} POI标记失败:`, error);
+            }
         }
         
         // 查找并标记最近地铁站
         if (uniqueStopData.length && typeof findNearestStation === 'function') {
             const nearestSubway = findNearestStation(uniqueStopData, item.wgsLat, item.wgsLon);
             if (nearestSubway && markerManager && typeof markerManager.createSubwayMarker === 'function') {
-                markerManager.createSubwayMarker(nearestSubway, type);
+                try {
+                    await markerManager.createSubwayMarker(nearestSubway, type);
+                    console.log(`${type} 地铁站标记创建成功`);
+                } catch (error) {
+                    console.error(`创建${type} 地铁站标记失败:`, error);
+                }
             }
         }
     }
@@ -331,16 +374,48 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // 切换起点终点
-        switchBtn.addEventListener('click', function() {
+        switchBtn.addEventListener('click', async function() {
             // 交换输入框的值
+            const startInput = document.getElementById('start-station');
+            const endInput = document.getElementById('end-station');
             const temp = startInput.value.trim();
             startInput.value = endInput.value.trim();
             endInput.value = temp;
             
-            // 交换标记
-            if (markerManager && typeof markerManager.swapStartEndMarkers === 'function') {
-                markerManager.swapStartEndMarkers();
+            // 获取当前的标记数据
+            const markers = markerManager.getAllMarkers();
+            
+            // 如果有起点和终点标记，交换它们
+            if (markers.startPOI && markers.endPOI) {
+                // 获取标记的数据
+                const startData = markers.startPOI.data;
+                const endData = markers.endPOI.data;
+                
+                // 清除所有标记
+                markerManager.clearAllMarkers();
+                
+                // 重新创建标记（交换类型）
+                if (startData) {
+                    await markerManager.createPOIMarker(startData, 'end'); // 原来的起点变成终点
+                }
+                
+                if (endData) {
+                    await markerManager.createPOIMarker(endData, 'start'); // 原来的终点变成起点
+                }
+            }
+            
+            // 同样处理地铁站标记
+            if (markers.startSubway && markers.endSubway) {
+                const startSubwayData = markers.startSubway.data;
+                const endSubwayData = markers.endSubway.data;
+                
+                if (startSubwayData) {
+                    await markerManager.createSubwayMarker(startSubwayData, 'end');
+                }
+                
+                if (endSubwayData) {
+                    await markerManager.createSubwayMarker(endSubwayData, 'start');
+                }
             }
             
             this.classList.add('active');
@@ -395,13 +470,34 @@ document.addEventListener('DOMContentLoaded', function () {
             loadingOverlay.style.display = 'flex';
         }
         
+        // 获取标记的实际数据
+        let startData, endData;
+        
+        if (startMarker && startMarker.data) {
+            startData = startMarker.data;
+        } else if (startMarker && startMarker._data) {
+            startData = startMarker._data.poi || startMarker._data.station;
+        }
+        
+        if (endMarker && endMarker.data) {
+            endData = endMarker.data;
+        } else if (endMarker && endMarker._data) {
+            endData = endMarker._data.poi || endMarker._data.station;
+        }
+        
+        if (!startData || !endData) {
+            alert('无法获取起点或终点数据，请重新选择位置');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+            return;
+        }
+        
         // 生成模拟路线
         let routeCoordinates = [];
         if (typeof generateMockRouteCoordinates === 'function') {
             routeCoordinates = generateMockRouteCoordinates(startMarker, endMarker);
         }
         
-        const routeData = generateRouteData(preference, startMarker, endMarker);
+        const routeData = generateRouteData(preference, startData, endData);
         
         // 模拟请求延迟
         setTimeout(() => {
@@ -422,9 +518,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 800);
     }
 
-    function generateRouteData(preference, startMarker, endMarker) {
-        const startName = startMarker._data?.poi?.name || startMarker._data?.station?.name || '起点';
-        const endName = endMarker._data?.poi?.name || endMarker._data?.station?.name || '终点';
+    function generateRouteData(preference, startData, endData) {
+        const startName = startData.name || '起点';
+        const endName = endData.name || '终点';
         
         if (preference === 'shortest') {
             return {
@@ -454,8 +550,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ========== 错误处理 ==========
-    function showLocationError(message, locationInfo = null) {
+    function showLocationError(message) {
         const locateBtn = document.getElementById('locate-btn');
+        const locationInfo = document.getElementById('location-info');
         
         if (locateBtn) {
             locateBtn.classList.remove('locating');
@@ -474,35 +571,55 @@ document.addEventListener('DOMContentLoaded', function () {
         
         try {
             // 1. 初始化地图
+            console.log('步骤1: 初始化地图...');
             const mapInitialized = initMap();
             if (!mapInitialized) {
                 throw new Error('地图初始化失败');
             }
             
             // 2. 初始化城市切换
+            console.log('步骤2: 初始化城市切换...');
             initCitySwitch();
             
             // 3. 初始化定位服务
+            console.log('步骤3: 初始化定位服务...');
             initLocationService();
             
             // 4. 加载初始数据
+            console.log('步骤4: 加载初始城市数据...');
             await loadCityData(currentCity);
             
             // 5. 初始化自动完成
+            console.log('步骤5: 初始化自动完成...');
             initAutocomplete();
             
             // 6. 初始化路线规划
+            console.log('步骤6: 初始化路线规划...');
             initRoutePlanning();
             
             console.log('路线规划页面初始化完成');
             
         } catch (error) {
             console.error('页面初始化失败:', error);
-            alert('页面初始化失败，请刷新页面重试');
+            // 显示友好的错误提示
+            const errorMessage = `页面初始化失败: ${error.message}。部分功能可能受限，请刷新页面重试。`;
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `
+                <div style="background: #f8d7da; color: #721c24; padding: 10px; margin: 10px; border-radius: 4px; border: 1px solid #f5c6cb;">
+                    <i class="fas fa-exclamation-triangle"></i> ${errorMessage}
+                </div>
+            `;
+            
+            const infoPanel = document.querySelector('.info-panel');
+            if (infoPanel) {
+                infoPanel.insertBefore(errorDiv, infoPanel.firstChild);
+            }
         }
     }
 
-    // 检查依赖是否加载完成
+    // ========== 检查依赖是否加载完成 ==========
     function checkDependencies() {
         const requiredFunctions = [
             'gcj02ToWgs84',
@@ -511,6 +628,15 @@ document.addEventListener('DOMContentLoaded', function () {
             'loadPOIData',
             'loadStopData'
         ];
+        
+        // 打印检查状态
+        requiredFunctions.forEach(func => {
+            if (typeof window[func] !== 'function') {
+                console.warn(`依赖函数 "${func}" 未找到`);
+            } else {
+                console.log(`依赖函数 "${func}" 已加载`);
+            }
+        });
         
         const missingDeps = requiredFunctions.filter(func => typeof window[func] !== 'function');
         
@@ -522,33 +648,61 @@ document.addEventListener('DOMContentLoaded', function () {
         return true;
     }
 
-    // 等待所有依赖加载完成
+    // ========== 等待所有依赖加载完成 ==========
     function waitForDependencies() {
         return new Promise((resolve) => {
-            const checkInterval = setInterval(() => {
+            // 先检查一次，如果全部加载了就立即resolve
+            if (checkDependencies()) {
+                console.log('所有依赖已就绪');
+                resolve(true);
+                return;
+            }
+            
+            // 如果还有未加载的，等200ms再检查
+            let attempts = 0;
+            const maxAttempts = 50; // 最多尝试50次（10秒）
+            
+            const intervalId = setInterval(() => {
+                attempts++;
+                
                 if (checkDependencies()) {
-                    clearInterval(checkInterval);
+                    clearInterval(intervalId);
+                    console.log(`所有依赖在 ${attempts * 200}ms 后准备就绪`);
+                    resolve(true);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(intervalId);
+                    console.error('依赖加载超时，但有部分功能可能仍可用');
                     resolve(true);
                 }
-            }, 100);
-            
-            // 10秒后超时
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                console.error('依赖加载超时');
-                resolve(false);
-            }, 10000);
+            }, 200);
         });
     }
 
-    // 启动应用
+    // ========== 启动应用 ==========
     async function startApp() {
+        console.log('开始启动应用...');
+        
+        // 显示加载提示
+        const loadingElement = document.getElementById('loading');
+        if (loadingElement) {
+            loadingElement.style.display = 'flex';
+        }
+        
+        // 等待依赖（使用宽松策略）
+        console.log('等待依赖加载...');
         const depsReady = await waitForDependencies();
         
         if (depsReady) {
-            init();
+            console.log('依赖已就绪，开始初始化主功能');
+            await init();
         } else {
-            alert('页面资源加载失败，请刷新页面重试');
+            console.warn('部分依赖未加载，尝试继续运行');
+            await init();
+        }
+        
+        // 隐藏加载提示
+        if (loadingElement) {
+            loadingElement.style.display = 'none';
         }
     }
 

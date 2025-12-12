@@ -46,15 +46,16 @@ window.drawRouteLine = function(map, coordinates) {
 
 // 生成模拟路线坐标
 window.generateMockRouteCoordinates = function(startMarker, endMarker) {
-    if (!startMarker || !endMarker) return [];
+    // 获取标记数据
+    const startData = startMarker && startMarker.data ? startMarker.data : 
+                    (startMarker && startMarker._data ? startMarker._data.poi || startMarker._data.station : null);
+    const endData = endMarker && endMarker.data ? endMarker.data : 
+                   (endMarker && endMarker._data ? endMarker._data.poi || endMarker._data.station : null);
     
-    const start = startMarker._data?.poi || startMarker._data?.station;
-    const end = endMarker._data?.poi || endMarker._data?.station;
+    if (!startData || !endData) return [];
     
-    if (!start || !end) return [];
-    
-    const startLngLat = [start.wgsLon, start.wgsLat];
-    const endLngLat = [end.wgsLon, end.wgsLat];
+    const startLngLat = [startData.wgsLon || startData.lon, startData.wgsLat || startData.lat];
+    const endLngLat = [endData.wgsLon || endData.lon, endData.wgsLat || endData.lat];
     
     const coordinates = [startLngLat];
     
