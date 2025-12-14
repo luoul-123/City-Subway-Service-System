@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let markerManager;
     let autocompleteManager;
     let isInitializing = false;
+    let allRouteOptions = []; // 存储所有路线方案
 
     // ========== 地图初始化 ==========
     function initMap() {
@@ -156,45 +157,53 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ========== 数据加载 ==========
     async function loadCityData(cityCode) {
-        try {
-            console.log(`开始加载${cityConfig[cityCode].name}数据...`);
-            
-            // 检查必要的函数是否可用
-            if (typeof loadPOIData !== 'function') {
-                throw new Error('loadPOIData函数未定义');
-            }
-            if (typeof loadStopData !== 'function') {
-                throw new Error('loadStopData函数未定义');
-            }
-            
-            const [poiData, stopDataResult] = await Promise.all([
-                loadPOIData(cityCode),
-                loadStopData(cityCode)
-            ]);
-            
-            currentPOIData = poiData;
-            stopData = stopDataResult;
-            
-            // 去重处理
-            if (typeof uniqueStations === 'function') {
-                uniqueStopData = uniqueStations(stopDataResult);
-            } else {
-                uniqueStopData = stopDataResult;
-            }
-            
-            console.log(`数据加载完成: ${poiData.length}个POI, ${uniqueStopData.length}个去重站点`);
-            
-            // 更新自动完成管理器数据
-            if (autocompleteManager && typeof autocompleteManager.updateData === 'function') {
-                autocompleteManager.updateData(currentPOIData, stopData);
-            }
-            
-            return true;
-        } catch (error) {
-            console.error('数据加载失败:', error);
-            throw error;
+    try {
+        console.log(`开始加载${cityConfig[cityCode].name}数据...`);
+        
+        // 检查必要的函数是否可用
+        if (typeof loadPOIData !== 'function') {
+            throw new Error('loadPOIData函数未定义');
         }
+        if (typeof loadStopData !== 'function') {
+            throw new Error('loadStopData函数未定义');
+        }
+        
+        const [poiData, stopDataResult] = await Promise.all([
+            loadPOIData(cityCode),
+            loadStopData(cityCode)
+        ]);
+        
+        currentPOIData = poiData;
+        stopData = stopDataResult;
+        
+        // 去重处理
+        if (typeof uniqueStations === 'function') {
+            uniqueStopData = uniqueStations(stopDataResult);
+        } else {
+            uniqueStopData = stopDataResult;
+        }
+        
+        console.log(`数据加载完成: ${poiData.length}个POI, ${uniqueStopData.length}个去重站点`);
+        
+        // 初始化地铁网络
+        if (typeof initSubwayNetwork === 'function') {
+            initSubwayNetwork(stopData);
+            console.log('地铁网络初始化成功');
+        } else {
+            console.warn('initSubwayNetwork函数未找到，路径规划功能可能受限');
+        }
+        
+        // 更新自动完成管理器数据
+        if (autocompleteManager && typeof autocompleteManager.updateData === 'function') {
+            autocompleteManager.updateData(currentPOIData, stopData);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('数据加载失败:', error);
+        throw error;
     }
+}
 
     // ========== 定位功能 ==========
     function initLocationService() {
@@ -425,8 +434,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // 关闭结果面板
         closeResultBtn.addEventListener('click', function() {
             document.getElementById('result-panel').style.display = 'none';
-            if (typeof clearRoute === 'function') {
-                clearRoute(map);
+            if (typeof clearRouteFromMap === 'function') {
+                clearRouteFromMap(map);
             }
         });
 
@@ -434,7 +443,6 @@ document.addEventListener('DOMContentLoaded', function () {
         planBtn.addEventListener('click', function() {
             const startStation = startInput.value.trim();
             const endStation = endInput.value.trim();
-            const preference = getSelectedPreference();
             
             if (!startStation || !endStation) {
                 alert('请输入起点和终点！');
@@ -452,78 +460,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             
-            planRoute(markers.startPOI, markers.endPOI, preference);
+            // 规划所有可能的路线方案
+            planAllRoutes(markers.startPOI, markers.endPOI);
         });
     }
 
-    function getSelectedPreference() {
-        const radios = document.querySelectorAll('input[name="route-preference"]');
-        for (const radio of radios) {
-            if (radio.checked) return radio.value;
-        }
-        return 'shortest';
-    }
-
-    function planRoute(startMarker, endMarker, preference) {
-        const loadingOverlay = document.getElementById('loading');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'flex';
-        }
-        
-        // 获取标记的实际数据
-        let startData, endData;
-        
-        if (startMarker && startMarker.data) {
-            startData = startMarker.data;
-        } else if (startMarker && startMarker._data) {
-            startData = startMarker._data.poi || startMarker._data.station;
-        }
-        
-        if (endMarker && endMarker.data) {
-            endData = endMarker.data;
-        } else if (endMarker && endMarker._data) {
-            endData = endMarker._data.poi || endMarker._data.station;
-        }
-        
-        if (!startData || !endData) {
-            alert('无法获取起点或终点数据，请重新选择位置');
-            if (loadingOverlay) loadingOverlay.style.display = 'none';
-            return;
-        }
-        
-        // 生成模拟路线
-        let routeCoordinates = [];
-        if (typeof generateMockRouteCoordinates === 'function') {
-            routeCoordinates = generateMockRouteCoordinates(startMarker, endMarker);
-        }
-        
-        const routeData = generateRouteData(preference, startData, endData);
-        
-        // 模拟请求延迟
-        setTimeout(() => {
-            if (loadingOverlay) {
-                loadingOverlay.style.display = 'none';
-            }
-            
-            if (typeof renderRouteResult === 'function') {
-                renderRouteResult(routeData);
-            }
-            
-            if (typeof drawRouteLine === 'function') {
-                drawRouteLine(map, routeCoordinates);
-            }
-            
-            // 显示结果面板
-            document.getElementById('result-panel').style.display = 'block';
-        }, 800);
-    }
-
-    function generateRouteData(preference, startData, endData) {
+    // 生成所有可能的路线方案
+    function generateAllPossibleRoutes(startData, endData) {
         const startName = startData.name || '起点';
         const endName = endData.name || '终点';
         
-        if (preference === 'shortest') {
-            return {
+        // 模拟多个路线方案
+        return [
+            {
+                id: 1,
+                name: '方案一：最短路径',
                 duration: '40分钟',
                 distance: '9.8公里',
                 transfers: '1次',
@@ -534,9 +485,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     { type: 'subway', title: '乘坐地铁2号线', detail: '途经2站（约7分钟）' },
                     { type: 'walk', title: '步行至目的地', detail: `地铁2号线 → ${endName}（约5分钟）` }
                 ]
-            };
-        } else {
-            return {
+            },
+            {
+                id: 2,
+                name: '方案二：最少换乘',
                 duration: '45分钟',
                 distance: '12公里',
                 transfers: '0次',
@@ -545,8 +497,210 @@ document.addEventListener('DOMContentLoaded', function () {
                     { type: 'subway', title: '乘坐地铁3号线', detail: '途经7站（约20分钟）' },
                     { type: 'walk', title: '步行至目的地', detail: `地铁3号线 → ${endName}（约6分钟）` }
                 ]
-            };
+            },
+            {
+                id: 3,
+                name: '方案三：较少步行',
+                duration: '50分钟',
+                distance: '11公里',
+                transfers: '1次',
+                steps: [
+                    { type: 'walk', title: '步行至地铁站', detail: `${startName} → 地铁4号线（约3分钟）` },
+                    { type: 'subway', title: '乘坐地铁4号线', detail: '途经4站（约12分钟）' },
+                    { type: 'transfer', title: '换乘', detail: '换乘5号线（约3分钟）' },
+                    { type: 'subway', title: '乘坐地铁5号线', detail: '途经5站（约15分钟）' },
+                    { type: 'walk', title: '步行至目的地', detail: `地铁5号线 → ${endName}（约3分钟）` }
+                ]
+            }
+        ];
+    }
+
+    function planAllRoutes(startMarker, endMarker) {
+    const loadingOverlay = document.getElementById('loading');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+    }
+    
+    // 获取标记的实际数据
+    let startData, endData;
+    
+    if (startMarker && startMarker.data) {
+        startData = startMarker.data;
+    } else if (startMarker && startMarker._data) {
+        startData = startMarker._data.poi || startMarker._data.station;
+    }
+    
+    if (endMarker && endMarker.data) {
+        endData = endMarker.data;
+    } else if (endMarker && endMarker._data) {
+        endData = endMarker._data.poi || endMarker._data.station;
+    }
+    
+    if (!startData || !endData) {
+        alert('无法获取起点或终点数据，请重新选择位置');
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        return;
+    }
+    
+    // 查找最近的地铁站
+    let startNearestSubway, endNearestSubway;
+    
+    if (uniqueStopData.length && typeof findNearestStation === 'function') {
+        startNearestSubway = findNearestStation(uniqueStopData, startData.lat || startData.wgsLat, startData.lon || startData.wgsLon);
+        endNearestSubway = findNearestStation(uniqueStopData, endData.lat || endData.wgsLat, endData.lon || endData.wgsLon);
+    }
+    
+    if (!startNearestSubway || !endNearestSubway) {
+        alert('无法找到最近的地铁站，请确保位置在城市范围内');
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        return;
+    }
+    
+    console.log(`最近地铁站: ${startNearestSubway.name} -> ${endNearestSubway.name}`);
+    
+    // 使用简化的路径规划算法
+    if (typeof generateAllRouteOptions === 'function') {
+        allRouteOptions = generateAllRouteOptions(startNearestSubway.name, endNearestSubway.name);
+    } else {
+        // 如果函数不存在，使用模拟数据
+        console.warn('generateAllRouteOptions函数未找到，使用模拟数据');
+        allRouteOptions = generateAllPossibleRoutes(startData, endData);
+    }
+    
+    // 模拟请求延迟
+    setTimeout(() => {
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
         }
+        
+        if (!allRouteOptions || allRouteOptions.length === 0) {
+            alert('未找到可行的地铁路线，请尝试其他起点或终点');
+            return;
+        }
+        
+        // 渲染所有路线方案
+        renderAllRouteOptions(allRouteOptions);
+        
+        // 初始显示第一条路线
+        if (allRouteOptions.length > 0) {
+            updateRouteStats(allRouteOptions[0]);
+            
+            // 在地图上显示路线
+            if (typeof displayRouteOnMap === 'function') {
+                displayRouteOnMap(map, allRouteOptions[0], startNearestSubway, endNearestSubway);
+            }
+        }
+        
+        // 显示结果面板
+        document.getElementById('result-panel').style.display = 'block';
+    }, 800);
+}
+
+    // 渲染所有路线方案供用户选择
+    function renderAllRouteOptions(routes) {
+        const resultContainer = document.getElementById('route-result');
+        
+        if (!resultContainer) {
+            console.error('结果容器未找到');
+            return;
+        }
+        
+        // 清空现有内容
+        resultContainer.innerHTML = '';
+        
+        if (!routes || routes.length === 0) {
+            resultContainer.innerHTML = `
+                <div class="no-result">
+                    <i class="fas fa-route"></i>
+                    <p>未找到可用路线，请尝试其他起点或终点</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 创建路线选项容器
+        const routeOptionsContainer = document.createElement('div');
+        routeOptionsContainer.className = 'route-options';
+        
+        // 添加每个路线方案
+        routes.forEach((route, index) => {
+            const routeCard = document.createElement('div');
+            routeCard.className = `route-option-card ${index === 0 ? 'selected' : ''}`;
+            routeCard.dataset.routeId = route.id;
+            
+            // 添加点击事件切换选中的路线
+            routeCard.addEventListener('click', function() {
+                // 移除其他卡片的选中状态
+                document.querySelectorAll('.route-option-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                // 添加当前卡片的选中状态
+                this.classList.add('selected');
+                
+                // 更新地图上显示的路线
+                const selectedRoute = allRouteOptions.find(r => r.id === parseInt(this.dataset.routeId));
+                if (selectedRoute) {
+                    updateRouteStats(selectedRoute);
+                    
+                    // 查找最近的地铁站（重新获取或存储）
+                    const markers = markerManager.getAllMarkers();
+                    let startNearestSubway, endNearestSubway;
+                    
+                    if (markers.startSubway && markers.startSubway.data) {
+                        startNearestSubway = markers.startSubway.data;
+                    }
+                    
+                    if (markers.endSubway && markers.endSubway.data) {
+                        endNearestSubway = markers.endSubway.data;
+                    }
+                    
+                    // 在地图上显示选中的路线
+                    if (typeof displayRouteOnMap === 'function' && startNearestSubway && endNearestSubway) {
+                        displayRouteOnMap(map, selectedRoute, startNearestSubway, endNearestSubway);
+                    }
+                }
+            });
+            
+            // 路线方案内容
+            routeCard.innerHTML = `
+                <div class="route-option-header">
+                    <span>${route.name}</span>
+                </div>
+                <div class="route-option-stats">
+                    <span><i class="fas fa-clock"></i> ${route.duration}</span>
+                    <span><i class="fas fa-subway"></i> ${route.distance}</span>
+                    <span><i class="fas fa-exchange-alt"></i> ${route.transfers}</span>
+                </div>
+                <div class="route-option-detail">
+                    ${route.steps.map(step => `
+                        <div class="route-step">
+                            <div class="step-icon ${step.type}">
+                                <i class="fas fa-${
+                                    step.type === 'walk' ? 'walking' : 
+                                    step.type === 'subway' ? 'subway' : 'exchange-alt'
+                                }"></i>
+                            </div>
+                            <div class="step-content">
+                                <div class="step-title">${step.title}</div>
+                                <div class="step-detail">${step.detail}</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            routeOptionsContainer.appendChild(routeCard);
+        });
+        
+        resultContainer.appendChild(routeOptionsContainer);
+    }
+
+    // 更新路线统计信息
+    function updateRouteStats(route) {
+        document.getElementById('duration').textContent = route.duration;
+        document.getElementById('distance').textContent = route.distance;
+        document.getElementById('transfers').textContent = route.transfers;
     }
 
     // ========== 错误处理 ==========

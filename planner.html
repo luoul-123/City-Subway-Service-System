@@ -42,7 +42,7 @@
                 <!-- 标题 -->
                 <div class="panel-header">
                     <h2><i class="fas fa-route"></i> 路线规划</h2>
-                    <p class="panel-subtitle">输入起点和终点，获取最佳地铁出行方案</p>
+                    <p class="panel-subtitle">输入起点和终点，获取所有地铁出行方案</p>
                 </div>
 
                 <!-- 路线查询表单 -->
@@ -71,22 +71,6 @@
                     <div class="form-group">
                         <label for="end-station"><i class="fas fa-map-marker-alt"></i> 终点</label>
                         <input type="text" id="end-station" placeholder="输入地铁站名或地址">
-                    </div>
-
-                    <div class="options-group">
-                        <label class="option-label">规划偏好:</label>
-                        <div class="radio-options">
-                            <label class="radio-option">
-                                <input type="radio" name="route-preference" value="shortest" checked>
-                                <span class="radio-custom"></span>
-                                <span class="radio-text">最短路径</span>
-                            </label>
-                            <label class="radio-option">
-                                <input type="radio" name="route-preference" value="least-transfers">
-                                <span class="radio-custom"></span>
-                                <span class="radio-text">最少换乘</span>
-                            </label>
-                        </div>
                     </div>
 
                     <button id="plan-route-btn" class="primary-btn">
@@ -148,10 +132,11 @@
     <script src="js/utils/coordinate-utils.js"></script>
     <script src="js/utils/subway-utils.js"></script>
     <script src="js/utils/data-utils.js"></script>
+    <script src="js/utils/route-planner-utils.js"></script>
     <script src="js/utils/map-utils.js"></script>
     <script src="js/utils/marker-utils.js"></script>
     <script src="js/utils/autocomplete-utils.js"></script>
-    <script src="js/utils/ui-utils.js"></script>
+    <script src="js/utils/ui-utils.js"></script>    
     <script src="js/planner.js"></script>
 </body>
 </html>

@@ -2,22 +2,54 @@
  * 寻找最近地铁站工具函数
  */
 
+
 /**
- * 对地铁站数据进行去重（同一站点可能因不同方向重复）
- * @param {Array} rawStops - 原始站点数据
- * @returns {Array} 去重后的站点数据
+ * 处理站点数据去重（适配 xx_stop.json 的对象格式）
+ * @param {Object} rawStops - 原始站点数据（nj_stop.json 格式）
+ * @returns {Array} 去重后的站点数组
  */
 window.uniqueStations = function(rawStops) {
-    const seen = new Set();
-    return rawStops.filter(stop => {
-        // 基于经纬度和名称组合去重（同一站点核心信息唯一）
-        const key = `${stop.wgsLon.toFixed(6)},${stop.wgsLat.toFixed(6)},${stop.name}`;
-        if (!seen.has(key)) {
-            seen.add(key);
-            return true;
+    // 容错：如果传入的是数组，直接处理；如果是对象，先转换为数组
+    let stationsArray = [];
+
+    // 步骤1：将 xx_stop.json 的对象格式转换为站点数组
+    if (typeof rawStops === 'object' && rawStops.name && !Array.isArray(rawStops)) {
+        // 获取所有索引（如 0,1,2...）
+        const indices = Object.keys(rawStops.name);
+        
+        // 遍历索引，组装每个站点的完整信息
+        stationsArray = indices.map(index => ({
+            id: parseInt(index),
+            name: rawStops.name[index] || '',
+            lineName: rawStops.linename[index] || '',
+            lineId: rawStops.x[index] || '',
+            direction: rawStops.direction[index] || '',
+            lon: parseFloat(rawStops.lon[index]) || 0,
+            lat: parseFloat(rawStops.lat[index]) || 0,
+            num: parseInt(rawStops.num[index]) || 0
+        }));
+    } else if (Array.isArray(rawStops)) {
+        // 如果已经是数组，直接使用
+        stationsArray = rawStops;
+    } else {
+        console.error('站点数据格式错误，无法转换:', rawStops);
+        return [];
+    }
+
+    // 步骤2：按「站名+线路编号+方向」去重
+    const uniqueMap = new Map();
+    stationsArray.forEach(station => {
+        // 生成唯一标识：站名 + 线路编号 + 方向（避免同一站点不同索引重复）
+        const uniqueKey = `${station.name}-${station.lineId}-${station.direction}`;
+        if (!uniqueMap.has(uniqueKey)) {
+            uniqueMap.set(uniqueKey, station);
         }
-        return false;
     });
+
+    // 转换为数组返回
+    const uniqueStations = Array.from(uniqueMap.values());
+    console.log(`站点数据去重完成：原始${stationsArray.length}个 → 去重后${uniqueStations.length}个`);
+    return uniqueStations;
 };
 
 /**

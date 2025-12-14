@@ -24,6 +24,13 @@ class MarkerManager {
             startSubway: null,
             endSubway: null
         };
+
+        // 添加路线标记存储
+        this.routeMarkers = []; // 存储路线标记
+        this.intersectionMarkers = []; // 存储换乘站标记
+        
+        // 存储路线数据
+        this.routeData = null;
         
         // 图标配置 - 使用自定义图片路径
         this.iconConfig = {
@@ -675,6 +682,381 @@ class MarkerManager {
                     }
                 }]
             });
+        }
+    }
+
+     /**
+     * 创建路线标记（显示所有相关站点）
+     */
+    async createRouteMarkers(stations, startStation, endStation, intersection) {
+        // 清除之前的路线标记
+        this.clearRouteMarkers();
+        
+        console.log(`开始创建路线标记，共${stations.length}个站点`);
+        
+        // 存储路线数据
+        this.routeData = {
+            stations: stations,
+            startStation: startStation,
+            endStation: endStation,
+            intersection: intersection
+        };
+        
+        // 标准化站名函数
+        const normalizeStationName = (name) => {
+            return name.replace(/[\s·•·]/g, '').toLowerCase();
+        };
+        
+        const normalizedStartName = startStation ? normalizeStationName(startStation.name) : '';
+        const normalizedEndName = endStation ? normalizeStationName(endStation.name) : '';
+        const normalizedIntersection = intersection ? normalizeStationName(intersection) : '';
+        
+        // 统计不同类型站点数量
+        let regularStationCount = 0;
+        let intersectionStationCount = 0;
+        
+        // 遍历所有站点
+        for (const station of stations) {
+            const normalizedStationName = normalizeStationName(station.name);
+            
+            // 跳过起点和终点（它们已经有特殊标记了）
+            if (normalizedStationName === normalizedStartName || 
+                normalizedStationName === normalizedEndName) {
+                continue;
+            }
+            
+            // 判断是否是换乘站
+            const isIntersection = normalizedStationName === normalizedIntersection;
+            
+            // 创建标记元素
+            const el = document.createElement('div');
+            el.className = 'route-marker';
+            el.style.width = isIntersection ? '14px' : '10px';
+            el.style.height = isIntersection ? '14px' : '10px';
+            el.style.borderRadius = '50%';
+            el.style.backgroundColor = isIntersection ? '#ffc107' : '#6c757d'; // 换乘站黄色，普通站灰色
+            el.style.border = '2px solid white';
+            el.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
+            el.style.cursor = 'pointer';
+            el.style.transition = 'all 0.2s ease';
+            el.title = `${station.name}${isIntersection ? ' (换乘站)' : ''}`;
+            
+            // 添加悬停效果
+            el.addEventListener('mouseenter', function() {
+                this.style.transform = 'scale(1.3)';
+                this.style.boxShadow = '0 0 8px rgba(0,0,0,0.5)';
+            });
+            
+            el.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+                this.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
+            });
+            
+            // 创建标记
+            const marker = new mapboxgl.Marker(el)
+                .setLngLat([station.lon, station.lat])
+                .addTo(this.map);
+            
+            // 添加点击事件显示弹窗
+            el.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                this.showRouteStationPopup(station, isIntersection);
+            });
+            
+            // 存储标记
+            if (isIntersection) {
+                this.intersectionMarkers.push({
+                    marker: marker,
+                    station: station,
+                    element: el
+                });
+                intersectionStationCount++;
+            } else {
+                this.routeMarkers.push({
+                    marker: marker,
+                    station: station,
+                    element: el
+                });
+                regularStationCount++;
+            }
+        }
+        
+        console.log(`路线标记创建完成: ${regularStationCount}个普通站, ${intersectionStationCount}个换乘站`);
+        
+        // 如果有换乘站，稍微调整起点和终点标记的z-index，让它们显示在最前面
+        if (intersectionStationCount > 0) {
+            this.adjustMarkerZIndex();
+        }
+        
+        // 创建连接线（可选）
+        this.createRouteLine(stations, startStation, endStation);
+    }
+    
+    /**
+     * 创建路线连接线
+     */
+    createRouteLine(stations, startStation, endStation) {
+        // 先清除旧的路线线
+        this.clearRouteLine();
+        
+        // 标准化站名函数
+        const normalizeStationName = (name) => {
+            return name.replace(/[\s·•·]/g, '').toLowerCase();
+        };
+        
+        const normalizedStartName = startStation ? normalizeStationName(startStation.name) : '';
+        const normalizedEndName = endStation ? normalizeStationName(endStation.name) : '';
+        
+        // 收集所有要连线的站点坐标（包括起点和终点）
+        const lineCoordinates = [];
+        
+        // 添加起点
+        if (startStation && startStation.lon && startStation.lat) {
+            lineCoordinates.push([startStation.lon, startStation.lat]);
+        }
+        
+        // 添加中间站点
+        for (const station of stations) {
+            const normalizedStationName = normalizeStationName(station.name);
+            
+            // 如果站点不是起点或终点，且坐标有效
+            if (normalizedStationName !== normalizedStartName && 
+                normalizedStationName !== normalizedEndName &&
+                station.lon && station.lat) {
+                lineCoordinates.push([station.lon, station.lat]);
+            }
+        }
+        
+        // 添加终点
+        if (endStation && endStation.lon && endStation.lat) {
+            lineCoordinates.push([endStation.lon, endStation.lat]);
+        }
+        
+        // 如果坐标点太少，不创建线
+        if (lineCoordinates.length < 2) {
+            console.log('站点坐标不足，不创建路线连接线');
+            return;
+        }
+        
+        try {
+            // 创建路线线数据源
+            this.map.addSource('route-line-source', {
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: lineCoordinates
+                    },
+                    properties: {
+                        name: '地铁路线'
+                    }
+                }
+            });
+            
+            // 创建路线线图层
+            this.map.addLayer({
+                id: 'route-line-layer',
+                type: 'line',
+                source: 'route-line-source',
+                layout: {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                paint: {
+                    'line-color': '#1a2a6c',
+                    'line-width': 3,
+                    'line-opacity': 0.6,
+                    'line-dasharray': [2, 1] // 虚线样式
+                }
+            });
+            
+            console.log('路线连接线创建完成');
+        } catch (error) {
+            console.error('创建路线连接线失败:', error);
+        }
+    }
+    
+    /**
+     * 清除路线连接线
+     */
+    clearRouteLine() {
+        try {
+            if (this.map.getLayer('route-line-layer')) {
+                this.map.removeLayer('route-line-layer');
+            }
+            
+            if (this.map.getSource('route-line-source')) {
+                this.map.removeSource('route-line-source');
+            }
+        } catch (error) {
+            console.error('清除路线连接线失败:', error);
+        }
+    }
+    
+    /**
+     * 显示路线站点弹窗
+     */
+    showRouteStationPopup(station, isIntersection) {
+        // 移除现有的弹窗
+        const popups = document.getElementsByClassName('mapboxgl-popup');
+        for (const popup of popups) {
+            popup.remove();
+        }
+        
+        // 创建弹窗内容
+        const popupContent = `
+            <div class="subway-popup" style="min-width: 200px;">
+                <h3>${station.name}</h3>
+                <p>线路：${station.lineName}</p>
+                ${isIntersection ? '<p><strong>换乘站</strong></p>' : ''}
+                <p>坐标：${station.lon.toFixed(6)}, ${station.lat.toFixed(6)}</p>
+            </div>
+        `;
+        
+        // 创建弹窗
+        const popup = new mapboxgl.Popup({ offset: 25 })
+            .setHTML(popupContent)
+            .setLngLat([station.lon, station.lat])
+            .addTo(this.map);
+        
+        // 3秒后自动关闭弹窗
+        setTimeout(() => {
+            if (popup.isOpen()) {
+                popup.remove();
+            }
+        }, 3000);
+    }
+    
+    /**
+     * 调整标记的z-index
+     */
+    adjustMarkerZIndex() {
+        // 让起点和终点标记显示在最前面
+        const markerTypes = ['startPOI', 'endPOI', 'startSubway', 'endSubway'];
+        
+        markerTypes.forEach(type => {
+            const marker = this.markers[type];
+            if (marker && marker.layerId && this.map.getLayer(marker.layerId)) {
+                // 将图层移到最前面
+                this.map.moveLayer(marker.layerId);
+            }
+        });
+    }
+    
+    /**
+     * 清除路线标记
+     */
+    clearRouteMarkers() {
+        // 清除路线标记
+        this.routeMarkers.forEach(item => {
+            if (item.marker && item.marker.remove) {
+                item.marker.remove();
+            }
+        });
+        this.routeMarkers = [];
+        
+        // 清除换乘站标记
+        this.intersectionMarkers.forEach(item => {
+            if (item.marker && item.marker.remove) {
+                item.marker.remove();
+            }
+        });
+        this.intersectionMarkers = [];
+        
+        // 清除路线连接线
+        this.clearRouteLine();
+        
+        // 清除路线数据
+        this.routeData = null;
+        
+        console.log('路线标记已清除');
+    }
+    
+    /**
+     * 获取路线数据
+     */
+    getRouteData() {
+        return this.routeData;
+    }
+    
+    /**
+     * 高亮显示特定的站点
+     */
+    highlightStation(stationName) {
+        // 标准化站名
+        const normalizeStationName = (name) => {
+            return name.replace(/[\s·•·]/g, '').toLowerCase();
+        };
+        
+        const normalizedTargetName = normalizeStationName(stationName);
+        
+        // 重置所有标记样式
+        this.resetAllMarkerStyles();
+        
+        // 高亮匹配的站点
+        let highlightedCount = 0;
+        
+        // 检查路线标记
+        this.routeMarkers.forEach(item => {
+            const normalizedCurrentName = normalizeStationName(item.station.name);
+            if (normalizedCurrentName === normalizedTargetName) {
+                item.element.style.backgroundColor = '#28a745'; // 绿色高亮
+                item.element.style.width = '14px';
+                item.element.style.height = '14px';
+                highlightedCount++;
+            }
+        });
+        
+        // 检查换乘站标记
+        this.intersectionMarkers.forEach(item => {
+            const normalizedCurrentName = normalizeStationName(item.station.name);
+            if (normalizedCurrentName === normalizedTargetName) {
+                item.element.style.backgroundColor = '#28a745'; // 绿色高亮
+                item.element.style.width = '16px';
+                item.element.style.height = '16px';
+                highlightedCount++;
+            }
+        });
+        
+        return highlightedCount;
+    }
+    
+    /**
+     * 重置所有标记样式
+     */
+    resetAllMarkerStyles() {
+        // 重置路线标记
+        this.routeMarkers.forEach(item => {
+            item.element.style.backgroundColor = '#6c757d';
+            item.element.style.width = '10px';
+            item.element.style.height = '10px';
+        });
+        
+        // 重置换乘站标记
+        this.intersectionMarkers.forEach(item => {
+            item.element.style.backgroundColor = '#ffc107';
+            item.element.style.width = '14px';
+            item.element.style.height = '14px';
+        });
+    }
+    
+    /**
+     * 清除所有标记（包括路线标记）
+     */
+    clearAllMarkers() {
+        // 调用原有的清除方法
+        Object.keys(this.markers).forEach(key => {
+            this.removeMarker(key);
+        });
+        
+        // 清除路线标记
+        this.clearRouteMarkers();
+        
+        // 清除用户位置标记
+        if (this.markers.userLocation) {
+            this.markers.userLocation.remove();
+            this.markers.userLocation = null;
         }
     }
 
