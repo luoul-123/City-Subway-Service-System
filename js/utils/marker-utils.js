@@ -238,14 +238,14 @@ class MarkerManager {
                     layout: {
                         'text-field': ['get', 'name'],
                         'text-font': ['Noto Sans CJK SC Regular'],
-                        'text-size': 11,          // 从12改为11，与地铁站统一
-                        'text-offset': [0, 1.5],  // 从[0, 1.8]改为[0, 1.5]，与地铁站统一
+                        'text-size': 11,          
+                        'text-offset': [0, 1.5],  
                         'text-anchor': 'top',
-                        'text-max-width': 8,      // 从10改为8，与地铁站统一
+                        'text-max-width': 8,   
                         'text-allow-overlap': false
                     },
                     paint: {
-                        'text-color': type === 'start' ? '#007bff' : '#dc3545', // 起点蓝色，终点红色
+                        'text-color': type === 'start' ? '#007bff' : '#dc3545', 
                         'text-halo-color': '#ffffff',
                         'text-halo-width': 2
                     }
@@ -688,22 +688,119 @@ class MarkerManager {
      /**
      * 创建路线标记（显示所有相关站点）
      */
-    async createRouteMarkers(stations, startStation, endStation, intersection) {
+    createRouteMarkers(routeStations, startStation, endStation, intersection) {
+        console.log('开始创建路线标记，站点数量:', routeStations.length);
+        console.log('传入的起点站:', startStation);
+        console.log('传入的终点站:', endStation);
+        
         // 清除之前的路线标记
         this.clearRouteMarkers();
-        
-        console.log(`开始创建路线标记，共${stations.length}个站点`);
-        
-        // 存储路线数据
-        this.routeData = {
-            stations: stations,
-            startStation: startStation,
-            endStation: endStation,
-            intersection: intersection
+
+        if (!routeStations || routeStations.length === 0) {
+            console.warn('没有站点数据，无法创建路线标记');
+            return;
+        }
+
+        // 标准化站名函数
+        const normalizeStationName = (name) => {
+            if (!name) return '';
+            return name.replace(/[\s·•·]/g, '').toLowerCase();
         };
+        
+        // 标准化起点和终点站名
+        const normalizedStartName = startStation ? normalizeStationName(startStation.name) : '';
+        const normalizedEndName = endStation ? normalizeStationName(endStation.name) : '';
+        const normalizedIntersection = intersection ? normalizeStationName(intersection) : '';
+
+        // 1. 标记所有站点（普通标记）
+        routeStations.forEach((station, index) => {
+            const normalizedStationName = normalizeStationName(station.name);
+            
+            // 判断站点类型
+            const isStart = normalizedStationName === normalizedStartName;
+            const isEnd = normalizedStationName === normalizedEndName;
+            const isTransfer = normalizedIntersection && normalizedStationName === normalizedIntersection;
+            
+            // 获取坐标 - 优先使用 wgsLon/wgsLat，否则使用 lon/lat
+            const lon = station.wgsLon !== undefined ? station.wgsLon : station.lon;
+            const lat = station.wgsLat !== undefined ? station.wgsLat : station.lat;
+            
+            // 验证坐标
+            if (isNaN(lon) || isNaN(lat) || lon === 0 || lat === 0) {
+                console.warn(`跳过无效坐标的站点: ${station.name}`, { lon, lat });
+                return;
+            }
+
+            // 创建站点标记（根据类型使用不同样式）
+            const markerEl = document.createElement('div');
+            markerEl.className = `station-marker ${
+                isStart ? 'start-station' : 
+                isEnd ? 'end-station' : 
+                isTransfer ? 'transfer-station' : 'normal-station'
+            }`;
+            
+            // 添加基本样式确保可见
+            markerEl.style.width = '12px';
+            markerEl.style.height = '12px';
+            markerEl.style.borderRadius = '50%';
+            markerEl.style.backgroundColor = isStart ? '#28a745' : 
+                                            isEnd ? '#dc3545' : 
+                                            isTransfer ? '#ffc107' : '#007bff';
+            markerEl.style.border = '2px solid white';
+            markerEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+            markerEl.style.zIndex = isStart || isEnd ? 100 : isTransfer ? 50 : 10;
+            
+            console.log(`创建标记: ${station.name}, 坐标: [${lon}, ${lat}], 类型: ${isStart ? '起点' : isEnd ? '终点' : isTransfer ? '换乘' : '普通'}`);
+            
+            const marker = new mapboxgl.Marker(markerEl)
+                .setLngLat([lon, lat])
+                .addTo(this.map);
+
+            // 存储标记引用
+            this.routeMarkers.push(marker);
+
+            // 添加弹窗
+            const popupContent = `
+                <div style="padding: 8px;">
+                    <strong>${station.name}</strong><br>
+                    线路：${station.lineName || station.linename || '未知线路'}<br>
+                    ${isStart ? '<span style="color: #28a745;">起点站</span>' : 
+                    isEnd ? '<span style="color: #dc3545;">终点站</span>' : 
+                    isTransfer ? '<span style="color: #ffc107;">换乘站</span>' : ''}
+                </div>
+            `;
+            
+            marker.setPopup(new mapboxgl.Popup()
+                .setHTML(popupContent)
+            );
+        });
+        
+        console.log(`总共创建了 ${this.routeMarkers.length} 个路线标记`);
+        
+        // 2. 创建路线连接线
+        this.createRouteLine(routeStations, startStation, endStation, intersection);
+    }
+
+    /**
+     * 创建路线连接线
+     */
+    createRouteLine(routeStations, startStation, endStation, intersection) {
+        // 先清除旧的路线线
+        try {
+            if (this.map.getLayer('route-line-layer')) {
+                this.map.removeLayer('route-line-layer');
+            }
+            
+            if (this.map.getSource('route-line-source')) {
+                this.map.removeSource('route-line-source');
+            }
+        } catch (error) {
+            console.error('清除路线连接线失败:', error);
+        }
         
         // 标准化站名函数
         const normalizeStationName = (name) => {
+            if (!name) return '';
             return name.replace(/[\s·•·]/g, '').toLowerCase();
         };
         
@@ -711,126 +808,62 @@ class MarkerManager {
         const normalizedEndName = endStation ? normalizeStationName(endStation.name) : '';
         const normalizedIntersection = intersection ? normalizeStationName(intersection) : '';
         
-        // 统计不同类型站点数量
-        let regularStationCount = 0;
-        let intersectionStationCount = 0;
-        
-        // 遍历所有站点
-        for (const station of stations) {
-            const normalizedStationName = normalizeStationName(station.name);
-            
-            // 跳过起点和终点（它们已经有特殊标记了）
-            if (normalizedStationName === normalizedStartName || 
-                normalizedStationName === normalizedEndName) {
-                continue;
-            }
-            
-            // 判断是否是换乘站
-            const isIntersection = normalizedStationName === normalizedIntersection;
-            
-            // 创建标记元素
-            const el = document.createElement('div');
-            el.className = 'route-marker';
-            el.style.width = isIntersection ? '14px' : '10px';
-            el.style.height = isIntersection ? '14px' : '10px';
-            el.style.borderRadius = '50%';
-            el.style.backgroundColor = isIntersection ? '#ffc107' : '#6c757d'; // 换乘站黄色，普通站灰色
-            el.style.border = '2px solid white';
-            el.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
-            el.style.cursor = 'pointer';
-            el.style.transition = 'all 0.2s ease';
-            el.title = `${station.name}${isIntersection ? ' (换乘站)' : ''}`;
-            
-            // 添加悬停效果
-            el.addEventListener('mouseenter', function() {
-                this.style.transform = 'scale(1.3)';
-                this.style.boxShadow = '0 0 8px rgba(0,0,0,0.5)';
-            });
-            
-            el.addEventListener('mouseleave', function() {
-                this.style.transform = 'scale(1)';
-                this.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
-            });
-            
-            // 创建标记
-            const marker = new mapboxgl.Marker(el)
-                .setLngLat([station.lon, station.lat])
-                .addTo(this.map);
-            
-            // 添加点击事件显示弹窗
-            el.addEventListener('click', (e) => {
-                e.stopPropagation(); // 阻止事件冒泡
-                this.showRouteStationPopup(station, isIntersection);
-            });
-            
-            // 存储标记
-            if (isIntersection) {
-                this.intersectionMarkers.push({
-                    marker: marker,
-                    station: station,
-                    element: el
-                });
-                intersectionStationCount++;
-            } else {
-                this.routeMarkers.push({
-                    marker: marker,
-                    station: station,
-                    element: el
-                });
-                regularStationCount++;
-            }
-        }
-        
-        console.log(`路线标记创建完成: ${regularStationCount}个普通站, ${intersectionStationCount}个换乘站`);
-        
-        // 如果有换乘站，稍微调整起点和终点标记的z-index，让它们显示在最前面
-        if (intersectionStationCount > 0) {
-            this.adjustMarkerZIndex();
-        }
-        
-        // 创建连接线（可选）
-        this.createRouteLine(stations, startStation, endStation);
-    }
-    
-    /**
-     * 创建路线连接线
-     */
-    createRouteLine(stations, startStation, endStation) {
-        // 先清除旧的路线线
-        this.clearRouteLine();
-        
-        // 标准化站名函数
-        const normalizeStationName = (name) => {
-            return name.replace(/[\s·•·]/g, '').toLowerCase();
-        };
-        
-        const normalizedStartName = startStation ? normalizeStationName(startStation.name) : '';
-        const normalizedEndName = endStation ? normalizeStationName(endStation.name) : '';
-        
-        // 收集所有要连线的站点坐标（包括起点和终点）
+        // 收集所有要连线的站点坐标
         const lineCoordinates = [];
         
-        // 添加起点
-        if (startStation && startStation.lon && startStation.lat) {
-            lineCoordinates.push([startStation.lon, startStation.lat]);
-        }
+        console.log('开始创建路线连接线，站点数:', routeStations.length);
+        console.log('起点站名:', normalizedStartName, '终点站名:', normalizedEndName);
         
-        // 添加中间站点
-        for (const station of stations) {
+        // 1. 找到线路上的起点站（通过站名匹配）
+        let routeStartIndex = -1;
+        let routeEndIndex = -1;
+        
+        for (let i = 0; i < routeStations.length; i++) {
+            const station = routeStations[i];
             const normalizedStationName = normalizeStationName(station.name);
             
-            // 如果站点不是起点或终点，且坐标有效
-            if (normalizedStationName !== normalizedStartName && 
-                normalizedStationName !== normalizedEndName &&
-                station.lon && station.lat) {
-                lineCoordinates.push([station.lon, station.lat]);
+            if (normalizedStationName === normalizedStartName && routeStartIndex === -1) {
+                routeStartIndex = i;
+            }
+            if (normalizedStationName === normalizedEndName && routeEndIndex === -1) {
+                routeEndIndex = i;
             }
         }
         
-        // 添加终点
-        if (endStation && endStation.lon && endStation.lat) {
-            lineCoordinates.push([endStation.lon, endStation.lat]);
+        console.log('线路起点索引:', routeStartIndex, '线路终点索引:', routeEndIndex);
+        
+        // 2. 确定正确的绘制方向
+        if (routeStartIndex !== -1 && routeEndIndex !== -1) {
+            // 确保从起点到终点是正向
+            const startIndex = Math.min(routeStartIndex, routeEndIndex);
+            const endIndex = Math.max(routeStartIndex, routeEndIndex);
+            
+            console.log(`从索引 ${startIndex} 到 ${endIndex} 绘制路线`);
+            
+            // 3. 收集坐标
+            for (let i = startIndex; i <= endIndex; i++) {
+                const station = routeStations[i];
+                const lon = station.wgsLon !== undefined ? station.wgsLon : station.lon;
+                const lat = station.wgsLat !== undefined ? station.wgsLat : station.lat;
+                
+                if (!isNaN(lon) && !isNaN(lat) && lon !== 0 && lat !== 0) {
+                    lineCoordinates.push([lon, lat]);
+                }
+            }
+        } else {
+            // 如果无法匹配，使用所有站点
+            console.warn('无法匹配起点或终点站，使用所有站点绘制');
+            routeStations.forEach((station) => {
+                const lon = station.wgsLon !== undefined ? station.wgsLon : station.lon;
+                const lat = station.wgsLat !== undefined ? station.wgsLat : station.lat;
+                
+                if (!isNaN(lon) && !isNaN(lat) && lon !== 0 && lat !== 0) {
+                    lineCoordinates.push([lon, lat]);
+                }
+            });
         }
+        
+        console.log(`路线连接线坐标数量: ${lineCoordinates.length}`);
         
         // 如果坐标点太少，不创建线
         if (lineCoordinates.length < 2) {
@@ -865,15 +898,225 @@ class MarkerManager {
                 },
                 paint: {
                     'line-color': '#1a2a6c',
-                    'line-width': 3,
-                    'line-opacity': 0.6,
-                    'line-dasharray': [2, 1] // 虚线样式
+                    'line-width': 4,
+                    'line-opacity': 0.7
                 }
             });
             
             console.log('路线连接线创建完成');
         } catch (error) {
             console.error('创建路线连接线失败:', error);
+        }
+    }
+
+    /**
+     * 标准化站名（内部方法）
+     */
+    normalizeStationName(name) {
+        if (!name) return '';
+        return name.replace(/[\s·•·]/g, '').toLowerCase();
+    }
+
+    /**
+     * 清除路线标记
+     */
+    clearRouteMarkers() {
+        console.log('清除路线标记 - 开始');
+        
+        // 1. 清除通过 mapboxgl.Marker 创建的标记
+        this.routeMarkers.forEach(marker => {
+            try {
+                if (marker && marker.remove) {
+                    marker.remove();
+                }
+            } catch (error) {
+                console.warn('清除标记时出错:', error);
+            }
+        });
+        this.routeMarkers = [];
+        
+        // 2. 清除换乘站标记
+        this.intersectionMarkers.forEach(marker => {
+            try {
+                if (marker && marker.remove) {
+                    marker.remove();
+                }
+            } catch (error) {
+                console.warn('清除换乘站标记时出错:', error);
+            }
+        });
+        this.intersectionMarkers = [];
+        
+        // 3. 清除所有可能的路线图层
+        const layers = [
+            'route-regular-stations-layer',
+            'route-transfer-stations-layer',
+            'route-line-layer'
+        ];
+        
+        const sources = [
+            'route-regular-stations-source',
+            'route-transfer-stations-source',
+            'route-line-source'
+        ];
+        
+        // 先移除图层
+        layers.forEach(layerId => {
+            try {
+                if (this.map.getLayer(layerId)) {
+                    // 移除事件监听器
+                    this.map.off('click', layerId);
+                    this.map.off('mouseenter', layerId);
+                    this.map.off('mouseleave', layerId);
+                    
+                    // 移除图层
+                    this.map.removeLayer(layerId);
+                }
+            } catch (error) {
+                // 图层可能不存在，忽略错误
+            }
+        });
+        
+        // 再移除数据源
+        sources.forEach(sourceId => {
+            try {
+                if (this.map.getSource(sourceId)) {
+                    this.map.removeSource(sourceId);
+                }
+            } catch (error) {
+                // 数据源可能不存在，忽略错误
+            }
+        });
+        
+        // 4. 清除路线数据
+        this.routeData = null;
+        
+        console.log('清除路线标记 - 完成');
+    }
+
+    /**
+     * 创建路线 symbol 图层
+     */
+    createRouteSymbolLayers(regularFeatures, transferFeatures) {
+        try {
+            // 1. 创建普通站点图层
+            if (regularFeatures.length > 0) {
+                // 数据源
+                this.map.addSource('route-regular-stations-source', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: regularFeatures
+                    }
+                });
+                
+                // 图层
+                this.map.addLayer({
+                    id: 'route-regular-stations-layer',
+                    type: 'symbol',
+                    source: 'route-regular-stations-source',
+                    layout: {
+                        'icon-image': 'marker-15', // 使用 Mapbox 默认标记
+                        'icon-size': 0.8,
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true,
+                        'text-field': ['get', 'name'],
+                        'text-font': ['Noto Sans CJK SC Regular'],
+                        'text-size': 10,
+                        'text-offset': [0, 1.2],
+                        'text-anchor': 'top',
+                        'text-max-width': 8,
+                        'text-optional': true
+                    },
+                    paint: {
+                        'icon-color': '#6c757d', // 灰色
+                        'text-color': '#6c757d',
+                        'text-halo-color': '#ffffff',
+                        'text-halo-width': 1
+                    }
+                });
+            }
+            
+            // 2. 创建换乘站图层
+            if (transferFeatures.length > 0) {
+                // 数据源
+                this.map.addSource('route-transfer-stations-source', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: transferFeatures
+                    }
+                });
+                
+                // 图层
+                this.map.addLayer({
+                    id: 'route-transfer-stations-layer',
+                    type: 'symbol',
+                    source: 'route-transfer-stations-source',
+                    layout: {
+                        'icon-image': 'marker-15',
+                        'icon-size': 1.0,
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true,
+                        'text-field': ['get', 'name'],
+                        'text-font': ['Noto Sans CJK SC Regular'],
+                        'text-size': 11,
+                        'text-offset': [0, 1.5],
+                        'text-anchor': 'top',
+                        'text-max-width': 8,
+                        'text-optional': false
+                    },
+                    paint: {
+                        'icon-color': '#ffc107', // 黄色
+                        'text-color': '#ffc107',
+                        'text-halo-color': '#ffffff',
+                        'text-halo-width': 2
+                    }
+                });
+            }
+            
+            // 3. 添加点击交互
+            this.addRouteStationInteractions();
+            
+        } catch (error) {
+            console.error('创建路线symbol图层失败:', error);
+        }
+    }
+
+    /**
+     * 添加路线站点的点击交互
+     */
+    addRouteStationInteractions() {
+        // 为普通站点添加交互
+        if (this.map.getLayer('route-regular-stations-layer')) {
+            this.map.on('click', 'route-regular-stations-layer', (e) => {
+                const feature = e.features[0];
+                this.showRouteStationPopup(feature.properties.stationData, false);
+            });
+            
+            this.map.on('mouseenter', 'route-regular-stations-layer', () => {
+                this.map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            this.map.on('mouseleave', 'route-regular-stations-layer', () => {
+                this.map.getCanvas().style.cursor = '';
+            });
+        }
+        
+        // 为换乘站添加交互
+        if (this.map.getLayer('route-transfer-stations-layer')) {
+            this.map.on('click', 'route-transfer-stations-layer', (e) => {
+                const feature = e.features[0];
+                this.showRouteStationPopup(feature.properties.stationData, true);
+            });
+            
+            this.map.on('mouseenter', 'route-transfer-stations-layer', () => {
+                this.map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            this.map.on('mouseleave', 'route-transfer-stations-layer', () => {
+                this.map.getCanvas().style.cursor = '';
+            });
         }
     }
     
@@ -948,29 +1191,56 @@ class MarkerManager {
      * 清除路线标记
      */
     clearRouteMarkers() {
-        // 清除路线标记
-        this.routeMarkers.forEach(item => {
-            if (item.marker && item.marker.remove) {
-                item.marker.remove();
+        console.log('清除路线标记');
+        
+        // 移除图层
+        const layers = [
+            'route-regular-stations-layer',
+            'route-transfer-stations-layer',
+            'route-line-layer'
+        ];
+        
+        const sources = [
+            'route-regular-stations-source',
+            'route-transfer-stations-source',
+            'route-line-source'
+        ];
+        
+        layers.forEach(layerId => {
+            try {
+                if (this.map.getLayer(layerId)) {
+                    this.map.removeLayer(layerId);
+                }
+            } catch (error) {
+                console.error(`移除图层 ${layerId} 失败:`, error);
             }
         });
-        this.routeMarkers = [];
         
-        // 清除换乘站标记
-        this.intersectionMarkers.forEach(item => {
-            if (item.marker && item.marker.remove) {
-                item.marker.remove();
+        sources.forEach(sourceId => {
+            try {
+                if (this.map.getSource(sourceId)) {
+                    this.map.removeSource(sourceId);
+                }
+            } catch (error) {
+                console.error(`移除数据源 ${sourceId} 失败:`, error);
             }
         });
-        this.intersectionMarkers = [];
         
-        // 清除路线连接线
-        this.clearRouteLine();
+        // 清除旧的事件监听器
+        if (this.map.getLayer('route-regular-stations-layer')) {
+            this.map.off('click', 'route-regular-stations-layer');
+            this.map.off('mouseenter', 'route-regular-stations-layer');
+            this.map.off('mouseleave', 'route-regular-stations-layer');
+        }
+        
+        if (this.map.getLayer('route-transfer-stations-layer')) {
+            this.map.off('click', 'route-transfer-stations-layer');
+            this.map.off('mouseenter', 'route-transfer-stations-layer');
+            this.map.off('mouseleave', 'route-transfer-stations-layer');
+        }
         
         // 清除路线数据
         this.routeData = null;
-        
-        console.log('路线标记已清除');
     }
     
     /**

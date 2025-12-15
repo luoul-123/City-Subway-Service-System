@@ -4,9 +4,11 @@
 
 // 绘制路线
 window.drawRouteLine = function(map, coordinates) {
-    // 移除现有路线
+    // 移除现有路线，避免图层冲突
     if (map.getSource('route-source')) {
-        map.removeLayer('route-layer');
+        if (map.getLayer('route-layer')) {
+            map.removeLayer('route-layer');
+        }
         map.removeSource('route-source');
     }
     
@@ -32,46 +34,11 @@ window.drawRouteLine = function(map, coordinates) {
             'line-cap': 'round'
         },
         'paint': {
-            'line-color': '#1a2a6c',
+            'line-color': '#1a2a6c',  // 线路颜色，可根据线路调整
             'line-width': 4,
             'line-opacity': 0.7
         }
     });
-    
-    // 调整地图视野
-    const bounds = new mapboxgl.LngLatBounds();
-    coordinates.forEach(coord => bounds.extend(coord));
-    map.fitBounds(bounds, { padding: 50, duration: 1000 });
-};
-
-// 生成模拟路线坐标
-window.generateMockRouteCoordinates = function(startMarker, endMarker) {
-    // 获取标记数据
-    const startData = startMarker && startMarker.data ? startMarker.data : 
-                    (startMarker && startMarker._data ? startMarker._data.poi || startMarker._data.station : null);
-    const endData = endMarker && endMarker.data ? endMarker.data : 
-                   (endMarker && endMarker._data ? endMarker._data.poi || endMarker._data.station : null);
-    
-    if (!startData || !endData) return [];
-    
-    const startLngLat = [startData.wgsLon || startData.lon, startData.wgsLat || startData.lat];
-    const endLngLat = [endData.wgsLon || endData.lon, endData.wgsLat || endData.lat];
-    
-    const coordinates = [startLngLat];
-    
-    // 生成中间点
-    const steps = 5;
-    for (let i = 1; i < steps; i++) {
-        const ratio = i / steps;
-        const randomOffset = (Math.random() - 0.5) * 0.05;
-        coordinates.push([
-            startLngLat[0] + (endLngLat[0] - startLngLat[0]) * ratio + randomOffset,
-            startLngLat[1] + (endLngLat[1] - startLngLat[1]) * ratio + randomOffset * 0.5
-        ]);
-    }
-    
-    coordinates.push(endLngLat);
-    return coordinates;
 };
 
 // 清除路线

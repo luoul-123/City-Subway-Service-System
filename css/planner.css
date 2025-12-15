@@ -221,6 +221,55 @@ body {
     font-size: 13px;
 }
 
+/* 路线标记样式 */
+.station-marker {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.start-station {
+    background-color: #28a745; /* 绿色 */
+}
+
+.end-station {
+    background-color: #dc3545; /* 红色 */
+}
+
+.transfer-station {
+    background-color: #ffc107; /* 黄色 */
+    width: 12px !important;
+    height: 12px !important;
+}
+
+.normal-station {
+    background-color: #007bff; /* 蓝色 */
+}
+
+/* 路线连接线 */
+.mapboxgl-popup {
+    max-width: 200px;
+}
+
+/* 确保标记显示在最上层 */
+.mapboxgl-marker {
+    z-index: 10;
+}
+
+.mapboxgl-marker.start-station {
+    z-index: 100;
+}
+
+.mapboxgl-marker.end-station {
+    z-index: 100;
+}
+
+.mapboxgl-marker.transfer-station {
+    z-index: 50;
+}
+
 /* ======================
    4. 表单元素样式
    ====================== */

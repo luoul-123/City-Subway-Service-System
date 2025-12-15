@@ -7,9 +7,10 @@ let subwayNetwork = null;
 
 /**
  * 初始化地铁网络
- * @param {Object} stopData - 站点数据
+ * @param {Array} stopDataArray - 站点数据数组
  */
-function initSubwayNetwork(stopData) {
+function initSubwayNetwork(stopDataArray) {
+    // 清空现有网络
     subwayNetwork = {
         stations: {},
         lines: {},
@@ -17,45 +18,71 @@ function initSubwayNetwork(stopData) {
         lineStations: {}
     };
 
+    if (!stopDataArray || !Array.isArray(stopDataArray)) {
+        console.error('站点数据格式错误，应为数组');
+        return;
+    }
+
+    console.log(`开始初始化地铁网络，共${stopDataArray.length}个站点记录`);
+
     // 处理每个站点
-    for (const key in stopData.name) {
-        const stationId = parseInt(key);
-        const station = {
+    stopDataArray.forEach(station => {
+        // 生成唯一ID
+        const stationId = station.id || `${station.lineId}-${station.name}-${station.direction}`;
+        
+        // 标准化数据
+        const processedStation = {
             id: stationId,
-            name: stopData.name[key],
-            lineName: stopData.linename[key],
-            lineId: stopData.x[key],
-            direction: stopData.direction[key],
-            lon: stopData.lon[key],
-            lat: stopData.lat[key]
+            name: station.name || '',
+            lineName: station.linename || station.lineName || '',
+            lineId: station.lineId || station.lineNumber || station.x || '',
+            direction: station.direction || 1,
+            lon: parseFloat(station.lon) || parseFloat(station.wgsLon) || 0,
+            lat: parseFloat(station.lat) || parseFloat(station.wgsLat) || 0,
+            num: station.num || 0
         };
 
         // 存储站点
-        subwayNetwork.stations[stationId] = station;
+        subwayNetwork.stations[stationId] = processedStation;
 
         // 按线路分组
-        const lineKey = `${station.lineId}-${station.direction}`;
+        const lineKey = `${processedStation.lineId}-${processedStation.direction}`;
         if (!subwayNetwork.lineStations[lineKey]) {
             subwayNetwork.lineStations[lineKey] = [];
         }
-        subwayNetwork.lineStations[lineKey].push(station);
+        
+        // 添加到线路，按 num 排序
+        subwayNetwork.lineStations[lineKey].push(processedStation);
+        
+        // 按站点序号排序
+        subwayNetwork.lineStations[lineKey].sort((a, b) => a.num - b.num);
 
         // 站点到线路的映射
-        if (!subwayNetwork.stationToLines[station.name]) {
-            subwayNetwork.stationToLines[station.name] = new Set();
+        if (!subwayNetwork.stationToLines[processedStation.name]) {
+            subwayNetwork.stationToLines[processedStation.name] = new Set();
         }
-        subwayNetwork.stationToLines[station.name].add(lineKey);
-    }
+        subwayNetwork.stationToLines[processedStation.name].add(lineKey);
+    });
 
     console.log('地铁网络初始化完成');
     console.log(`站点数: ${Object.keys(subwayNetwork.stations).length}`);
     console.log(`线路数: ${Object.keys(subwayNetwork.lineStations).length}`);
+    
+    // 统计换乘站
+    let transferStations = 0;
+    Object.keys(subwayNetwork.stationToLines).forEach(stationName => {
+        if (subwayNetwork.stationToLines[stationName].size > 1) {
+            transferStations++;
+        }
+    });
+    console.log(`换乘站数: ${transferStations}`);
 }
 
 /**
  * 标准化站名
  */
 function normalizeStationName(name) {
+    if (!name) return '';
     return name.replace(/[\s·•·]/g, '').toLowerCase();
 }
 
@@ -63,14 +90,14 @@ function normalizeStationName(name) {
  * 查找站点信息
  */
 function findStationsByName(stationName) {
-    if (!subwayNetwork) return [];
+    if (!subwayNetwork || !stationName) return [];
     
     const normalizedName = normalizeStationName(stationName);
     const result = [];
     
     for (const stationId in subwayNetwork.stations) {
         const station = subwayNetwork.stations[stationId];
-        if (normalizeStationName(station.name).includes(normalizedName)) {
+        if (normalizeStationName(station.name) === normalizedName) {
             result.push(station);
         }
     }
@@ -82,7 +109,7 @@ function findStationsByName(stationName) {
  * 获取站点所在的所有线路
  */
 function getStationLines(stationName) {
-    if (!subwayNetwork) return [];
+    if (!subwayNetwork || !stationName) return [];
     
     const normalizedName = normalizeStationName(stationName);
     const lines = new Set();
@@ -105,7 +132,6 @@ function getLineStations(lineKey) {
         return [];
     }
     
-    // 按站点顺序排序（如果有num信息的话）
     return subwayNetwork.lineStations[lineKey];
 }
 
@@ -190,104 +216,120 @@ function generateAllRouteOptions(startStationName, endStationName) {
                 const lineStations = getLineStations(startLine);
                 const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
                 const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
-                
-                if (startStation && endStation) {
-                    // 估算站点数量（简单算法）
-                    const stationCount = Math.abs(
-                        lineStations.findIndex(s => s.id === startStation.id) -
-                        lineStations.findIndex(s => s.id === endStation.id)
-                    ) + 1;
+
+                if (startLine === endLine) {
+                    // 同一线路，直达
+                    const lineStations = getLineStations(startLine);
+                    const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
+                    const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
                     
-                    const duration = stationCount * 2; // 每站2分钟
-                    const distance = stationCount * 1.5; // 每站1.5公里
-                    
-                    routeOptions.push({
-                        id: routeId++,
-                        name: `方案${routeId-1}: 直达`,
-                        description: `${startStation.name} 直达 ${endStation.name}`,
-                        type: '直达',
-                        duration: `${duration}分钟`,
-                        distance: `${distance.toFixed(1)}公里`,
-                        transfers: '0次',
-                        steps: [
-                            {
-                                type: 'subway',
-                                title: `乘坐${startStation.lineName}`,
-                                detail: `从${startStation.name}站到${endStation.name}站，途经${stationCount}站`
-                            }
-                        ],
-                        startLine: startLine,
-                        endLine: endLine,
-                        intersection: null,
-                        stationCount: stationCount
-                    });
+                    if (startStation && endStation) {
+                        // 估算站点数量
+                        const startIndex = lineStations.findIndex(s => s.id === startStation.id);
+                        const endIndex = lineStations.findIndex(s => s.id === endStation.id);
+                        
+                        if (startIndex >= 0 && endIndex >= 0) {
+                            const stationCount = Math.abs(endIndex - startIndex) + 1;
+                            const duration = stationCount * 2; // 每站2分钟
+                            const distance = stationCount * 1.5; // 每站1.5公里
+                            
+                            routeOptions.push({
+                                id: routeId++,
+                                name: `方案${routeId-1}: 直达`,
+                                description: `${startStation.name} 直达 ${endStation.name}`,
+                                type: '直达',
+                                duration: `${duration}分钟`,
+                                distance: `${distance.toFixed(1)}公里`,
+                                transfers: '0次',
+                                steps: [
+                                    {
+                                        type: 'subway',
+                                        title: `乘坐${startStation.lineName}`,
+                                        detail: `从${startStation.name}站到${endStation.name}站，途经${stationCount}站`
+                                    }
+                                ],
+                                startLine: startLine,
+                                endLine: endLine,
+                                intersection: null,
+                                stationCount: stationCount,
+                                startStation: startStation,  // 确保这里是正确的站点对象
+                                endStation: endStation       // 确保这里是正确的站点对象
+                            });
+                        }
+                    }
                 }
             }
         }
     }
     
     // 2. 一次换乘路线
-    for (const startLine of startLines) {
-        for (const endLine of endLines) {
-            if (startLine !== endLine) {
-                const intersections = findIntersectionStations(startLine, endLine);
-                
-                if (intersections.length > 0) {
-                    // 使用第一个交汇站
-                    const intersection = intersections[0];
+    if (routeOptions.length === 0) {
+        for (const startLine of startLines) {
+            for (const endLine of endLines) {
+                if (startLine !== endLine) {
+                    const intersections = findIntersectionStations(startLine, endLine);
                     
-                    // 估算站点数量
-                    const startLineStations = getLineStations(startLine);
-                    const endLineStations = getLineStations(endLine);
-                    
-                    const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
-                    const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
-                    
-                    if (startStation && endStation) {
-                        const startToIntersection = Math.abs(
-                            startLineStations.findIndex(s => s.id === startStation.id) -
-                            startLineStations.findIndex(s => s.id === intersection.station1.id)
-                        ) + 1;
+                    if (intersections.length > 0) {
+                        // 使用第一个交汇站
+                        const intersection = intersections[0];
+                        const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
+                        const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
                         
-                        const intersectionToEnd = Math.abs(
-                            endLineStations.findIndex(s => s.id === intersection.station2.id) -
-                            endLineStations.findIndex(s => s.id === endStation.id)
-                        ) + 1;
-                        
-                        const totalStations = startToIntersection + intersectionToEnd;
-                        const duration = totalStations * 2 + 5; // 每站2分钟 + 5分钟换乘
-                        const distance = totalStations * 1.5; // 每站1.5公里
-                        
-                        routeOptions.push({
-                            id: routeId++,
-                            name: `方案${routeId-1}: 一次换乘`,
-                            description: `${startStation.name} → ${intersection.name} → ${endStation.name}`,
-                            type: '一次换乘',
-                            duration: `${duration}分钟`,
-                            distance: `${distance.toFixed(1)}公里`,
-                            transfers: '1次',
-                            steps: [
-                                {
-                                    type: 'subway',
-                                    title: `乘坐${startStation.lineName}`,
-                                    detail: `从${startStation.name}站到${intersection.name}站，途经${startToIntersection}站`
-                                },
-                                {
-                                    type: 'transfer',
-                                    title: `换乘${endStation.lineName}`,
-                                    detail: `在${intersection.name}站换乘`
-                                },
-                                {
-                                    type: 'subway',
-                                    title: `乘坐${endStation.lineName}`,
-                                    detail: `从${intersection.name}站到${endStation.name}站，途经${intersectionToEnd}站`
-                                }
-                            ],
-                            startLine: startLine,
-                            endLine: endLine,
-                            intersection: intersection.name,
-                            stationCount: totalStations
-                        });
+                        if (startStation && endStation) {
+                            // 计算各段站点数
+                            const startLineStations = getLineStations(startLine);
+                            const endLineStations = getLineStations(endLine);
+                            
+                            const startIndex = startLineStations.findIndex(s => s.id === startStation.id);
+                            const transferStartIndex = startLineStations.findIndex(s => s.id === intersection.station1.id);
+                            const transferEndIndex = endLineStations.findIndex(s => s.id === intersection.station2.id);
+                            const endIndex = endLineStations.findIndex(s => s.id === endStation.id);
+                            
+                            if (startIndex >= 0 && transferStartIndex >= 0 && 
+                                transferEndIndex >= 0 && endIndex >= 0) {
+                                
+                                const segment1Count = Math.abs(transferStartIndex - startIndex) + 1;
+                                const segment2Count = Math.abs(endIndex - transferEndIndex) + 1;
+                                const totalStations = segment1Count + segment2Count;
+                                
+                                const duration = totalStations * 2 + 5; // 每站2分钟 + 5分钟换乘
+                                const distance = totalStations * 1.5;
+                                
+                                routeOptions.push({
+                                    id: routeId++,
+                                    name: `方案${routeId-1}: 一次换乘`,
+                                    description: `${startStation.name} → ${intersection.name} → ${endStation.name}`,
+                                    type: '一次换乘',
+                                    duration: `${duration}分钟`,
+                                    distance: `${distance.toFixed(1)}公里`,
+                                    transfers: '1次',
+                                    steps: [
+                                        {
+                                            type: 'subway',
+                                            title: `乘坐${startStation.lineName}`,
+                                            detail: `从${startStation.name}站到${intersection.name}站，途经${segment1Count}站`
+                                        },
+                                        {
+                                            type: 'transfer',
+                                            title: `换乘${endStation.lineName}`,
+                                            detail: `在${intersection.name}站换乘`
+                                        },
+                                        {
+                                            type: 'subway',
+                                            title: `乘坐${endStation.lineName}`,
+                                            detail: `从${intersection.name}站到${endStation.name}站，途经${segment2Count}站`
+                                        }
+                                    ],
+                                    startLine: startLine,
+                                    endLine: endLine,
+                                    intersection: intersection.name,
+                                    stationCount: totalStations,
+                                    startStation: startStation,
+                                    endStation: endStation,
+                                    transferStations: [intersection.station1]
+                                });
+                            }
+                        }
                     }
                 }
             }
@@ -331,44 +373,147 @@ function generateAllRouteOptions(startStationName, endStationName) {
 function displayRouteOnMap(map, routeOption, startStation, endStation) {
     if (!map || !routeOption) return;
     
-    // 清除之前的路线
+    console.log('开始显示路线到地图，先清除旧标记');
+    
+    // 彻底清除之前的路线标记
     clearRouteFromMap(map);
     
-    // 获取线路信息
-    const startLineStations = getLineStations(routeOption.startLine);
-    const endLineStations = getLineStations(routeOption.endLine);
-    
-    // 收集所有要显示的站点
-    const routeStations = [];
-    
-    // 添加起点线路的站点
-    if (startLineStations.length > 0) {
-        routeStations.push(...startLineStations);
-    }
-    
-    // 添加终点线路的站点
-    if (routeOption.endLine && routeOption.endLine !== routeOption.startLine) {
-        routeStations.push(...endLineStations);
-    }
-    
-    // 在地图上标记这些站点
-    if (window.markerManager && typeof window.markerManager.createRouteMarkers === 'function') {
-        window.markerManager.createRouteMarkers(routeStations, startStation, endStation, routeOption.intersection);
-    }
-    
-    // 调整地图视图以显示所有相关站点
-    if (routeStations.length > 0) {
-        const coordinates = routeStations.map(station => [station.lon, station.lat]);
-        const bounds = coordinates.reduce((bounds, coord) => {
-            return bounds.extend(coord);
-        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
-        
-        map.fitBounds(bounds, {
-            padding: 100,
-            duration: 1000,
-            maxZoom: 15
+    // 确保地图上没有残留的路线相关元素
+    setTimeout(() => {
+        console.log('清除完成，开始显示新路线:', {
+            路线名称: routeOption.name,
+            起点站: routeOption.startStation ? routeOption.startStation.name : '无',
+            终点站: routeOption.endStation ? routeOption.endStation.name : '无'
         });
-    }
+        
+        // 获取线路信息
+        const startLineStations = getLineStations(routeOption.startLine);
+        const endLineStations = routeOption.endLine ? getLineStations(routeOption.endLine) : [];
+        
+        console.log('线路站点数量:', {
+            起点线路: startLineStations.length,
+            终点线路: endLineStations.length
+        });
+        
+        // 收集所有要显示的站点
+        const routeStations = [];
+        
+        // 如果是一次换乘路线，需要正确处理两个线路
+        if (routeOption.type === '一次换乘' && routeOption.intersection) {
+            // 找到换乘站在起点线路中的位置
+            const intersectionIndex = startLineStations.findIndex(station => 
+                normalizeStationName(station.name) === normalizeStationName(routeOption.intersection)
+            );
+            
+            // 找到换乘站在终点线路中的位置
+            const intersectionIndex2 = endLineStations.findIndex(station =>
+                normalizeStationName(station.name) === normalizeStationName(routeOption.intersection)
+            );
+            
+            // 找到起点站在起点线路中的位置
+            const startIndex = startLineStations.findIndex(station =>
+                normalizeStationName(station.name) === normalizeStationName(startStation.name)
+            );
+            
+            // 找到终点站在终点线路中的位置
+            const endIndex = endLineStations.findIndex(station =>
+                normalizeStationName(station.name) === normalizeStationName(endStation.name)
+            );
+            
+            console.log('换乘路线索引信息:', {
+                起点站索引: startIndex,
+                换乘站索引1: intersectionIndex,
+                换乘站索引2: intersectionIndex2,
+                终点站索引: endIndex
+            });
+            
+            if (startIndex !== -1 && intersectionIndex !== -1) {
+                // 确定起点线路的方向
+                const startSegment = startIndex < intersectionIndex ? 
+                    startLineStations.slice(startIndex, intersectionIndex + 1) :
+                    startLineStations.slice(intersectionIndex, startIndex + 1).reverse();
+                
+                routeStations.push(...startSegment);
+            }
+            
+            if (intersectionIndex2 !== -1 && endIndex !== -1) {
+                // 确定终点线路的方向
+                const endSegment = intersectionIndex2 < endIndex ?
+                    endLineStations.slice(intersectionIndex2, endIndex + 1) :
+                    endLineStations.slice(endIndex, intersectionIndex2 + 1).reverse();
+                
+                routeStations.push(...endSegment);
+            }
+        } else {
+            // 直达路线，直接使用起点线路
+            // 找到起点站和终点站在线路中的位置
+            const startIndex = startLineStations.findIndex(station =>
+                normalizeStationName(station.name) === normalizeStationName(startStation.name)
+            );
+            
+            const endIndex = startLineStations.findIndex(station =>
+                normalizeStationName(station.name) === normalizeStationName(endStation.name)
+            );
+            
+            console.log('直达路线索引信息:', {
+                起点站索引: startIndex,
+                终点站索引: endIndex
+            });
+            
+            if (startIndex !== -1 && endIndex !== -1) {
+                // 确定方向
+                const segment = startIndex < endIndex ?
+                    startLineStations.slice(startIndex, endIndex + 1) :
+                    startLineStations.slice(endIndex, startIndex + 1).reverse();
+                
+                routeStations.push(...segment);
+            }
+        }
+        
+        console.log(`总共收集到 ${routeStations.length} 个站点显示`);
+        
+        // 在地图上标记这些站点
+        if (window.markerManager && typeof window.markerManager.createRouteMarkers === 'function') {
+            console.log('调用markerManager.createRouteMarkers:', {
+                起点: startStation?.name,
+                终点: endStation?.name,
+                换乘站: routeOption.intersection,
+                站点数: routeStations.length
+            });
+            
+            window.markerManager.createRouteMarkers(
+                routeStations, 
+                startStation, 
+                endStation, 
+                routeOption.intersection
+            );
+        } else {
+            console.error('markerManager或createRouteMarkers方法不存在');
+        }
+        
+        // 调整地图视图以显示所有相关站点
+        if (routeStations.length > 0) {
+            const coordinates = routeStations.map(station => {
+                const lon = station.wgsLon !== undefined ? station.wgsLon : station.lon;
+                const lat = station.wgsLat !== undefined ? station.wgsLat : station.lat;
+                return [lon, lat];
+            }).filter(coord => !isNaN(coord[0]) && !isNaN(coord[1]) && coord[0] !== 0 && coord[1] !== 0);
+            
+            if (coordinates.length > 0) {
+                const bounds = coordinates.reduce((bounds, coord) => {
+                    return bounds.extend(coord);
+                }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+                
+                map.fitBounds(bounds, {
+                    padding: 80,
+                    duration: 1000,
+                    maxZoom: 14
+                });
+            }
+        }
+        
+        console.log('新路线显示完成');
+    }, 100); // 延迟100ms确保清除操作完成
 }
 
 /**
