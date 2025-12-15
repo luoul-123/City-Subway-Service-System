@@ -226,6 +226,7 @@ function generateAllRouteOptions(startStationName, endStationName) {
     
     const routeOptions = [];
     let routeId = 1;
+    const routeKeys = new Set(); // 用于去重的键集合
     
     // 1. 直达路线（起点和终点在同一线路）
     for (const startLine of startLines) {
@@ -235,22 +236,22 @@ function generateAllRouteOptions(startStationName, endStationName) {
                 const lineStations = getLineStations(startLine);
                 const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
                 const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
-
-                if (startLine === endLine) {
-                    // 同一线路，直达
-                    const lineStations = getLineStations(startLine);
-                    const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
-                    const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
+                
+                if (startStation && endStation) {
+                    // 估算站点数量
+                    const startIndex = lineStations.findIndex(s => s.id === startStation.id);
+                    const endIndex = lineStations.findIndex(s => s.id === endStation.id);
                     
-                    if (startStation && endStation) {
-                        // 估算站点数量
-                        const startIndex = lineStations.findIndex(s => s.id === startStation.id);
-                        const endIndex = lineStations.findIndex(s => s.id === endStation.id);
+                    if (startIndex >= 0 && endIndex >= 0) {
+                        const stationCount = Math.abs(endIndex - startIndex) + 1;
+                        const duration = stationCount * 2; // 每站2分钟
+                        const distance = stationCount * 1.5; // 每站1.5公里
                         
-                        if (startIndex >= 0 && endIndex >= 0) {
-                            const stationCount = Math.abs(endIndex - startIndex) + 1;
-                            const duration = stationCount * 2; // 每站2分钟
-                            const distance = stationCount * 1.5; // 每站1.5公里
+                        // 创建唯一键用于去重
+                        const routeKey = `直达_${startStation.name}_${endStation.name}_${startLine}_${startIndex}_${endIndex}`;
+                        
+                        if (!routeKeys.has(routeKey)) {
+                            routeKeys.add(routeKey);
                             
                             routeOptions.push({
                                 id: routeId++,
@@ -271,8 +272,8 @@ function generateAllRouteOptions(startStationName, endStationName) {
                                 endLine: endLine,
                                 intersection: null,
                                 stationCount: stationCount,
-                                startStation: startStation,  // 确保这里是正确的站点对象
-                                endStation: endStation       // 确保这里是正确的站点对象
+                                startStation: startStation,
+                                endStation: endStation
                             });
                         }
                     }
@@ -283,72 +284,83 @@ function generateAllRouteOptions(startStationName, endStationName) {
     
     // 2. 一次换乘路线
     if (routeOptions.length === 0) {
+        const processedIntersections = new Set(); // 记录已处理的换乘组合
+        
         for (const startLine of startLines) {
             for (const endLine of endLines) {
                 if (startLine !== endLine) {
                     const intersections = findIntersectionStations(startLine, endLine);
                     
                     if (intersections.length > 0) {
-                        // 使用第一个交汇站
-                        const intersection = intersections[0];
-                        const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
-                        const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
-                        
-                        if (startStation && endStation) {
-                            // 计算各段站点数
-                            const startLineStations = getLineStations(startLine);
-                            const endLineStations = getLineStations(endLine);
+                        // 对每个交汇站生成路线
+                        intersections.forEach(intersection => {
+                            const startStation = startStations.find(s => `${s.lineId}-${s.direction}` === startLine);
+                            const endStation = endStations.find(s => `${s.lineId}-${s.direction}` === endLine);
                             
-                            const startIndex = startLineStations.findIndex(s => s.id === startStation.id);
-                            const transferStartIndex = startLineStations.findIndex(s => s.id === intersection.station1.id);
-                            const transferEndIndex = endLineStations.findIndex(s => s.id === intersection.station2.id);
-                            const endIndex = endLineStations.findIndex(s => s.id === endStation.id);
-                            
-                            if (startIndex >= 0 && transferStartIndex >= 0 && 
-                                transferEndIndex >= 0 && endIndex >= 0) {
+                            if (startStation && endStation) {
+                                // 计算各段站点数
+                                const startLineStations = getLineStations(startLine);
+                                const endLineStations = getLineStations(endLine);
                                 
-                                const segment1Count = Math.abs(transferStartIndex - startIndex) + 1;
-                                const segment2Count = Math.abs(endIndex - transferEndIndex) + 1;
-                                const totalStations = segment1Count + segment2Count;
+                                const startIndex = startLineStations.findIndex(s => s.id === startStation.id);
+                                const transferStartIndex = startLineStations.findIndex(s => s.id === intersection.station1.id);
+                                const transferEndIndex = endLineStations.findIndex(s => s.id === intersection.station2.id);
+                                const endIndex = endLineStations.findIndex(s => s.id === endStation.id);
                                 
-                                const duration = totalStations * 2 + 5; // 每站2分钟 + 5分钟换乘
-                                const distance = totalStations * 1.5;
-                                
-                                routeOptions.push({
-                                    id: routeId++,
-                                    name: `方案${routeId-1}: 一次换乘`,
-                                    description: `${startStation.name} → ${intersection.name} → ${endStation.name}`,
-                                    type: '一次换乘',
-                                    duration: `${duration}分钟`,
-                                    distance: `${distance.toFixed(1)}公里`,
-                                    transfers: '1次',
-                                    steps: [
-                                        {
-                                            type: 'subway',
-                                            title: `乘坐${startStation.lineName}`,
-                                            detail: `从${startStation.name}站到${intersection.name}站，途经${segment1Count}站`
-                                        },
-                                        {
-                                            type: 'transfer',
-                                            title: `换乘${endStation.lineName}`,
-                                            detail: `在${intersection.name}站换乘`
-                                        },
-                                        {
-                                            type: 'subway',
-                                            title: `乘坐${endStation.lineName}`,
-                                            detail: `从${intersection.name}站到${endStation.name}站，途经${segment2Count}站`
-                                        }
-                                    ],
-                                    startLine: startLine,
-                                    endLine: endLine,
-                                    intersection: intersection.name,
-                                    stationCount: totalStations,
-                                    startStation: startStation,
-                                    endStation: endStation,
-                                    transferStations: [intersection.station1]
-                                });
+                                if (startIndex >= 0 && transferStartIndex >= 0 && 
+                                    transferEndIndex >= 0 && endIndex >= 0) {
+                                    
+                                    const segment1Count = Math.abs(transferStartIndex - startIndex) + 1;
+                                    const segment2Count = Math.abs(endIndex - transferEndIndex) + 1;
+                                    const totalStations = segment1Count + segment2Count;
+                                    
+                                    const duration = totalStations * 2 + 5; // 每站2分钟 + 5分钟换乘
+                                    const distance = totalStations * 1.5;
+                                    
+                                    // 创建唯一键用于去重
+                                    const routeKey = `换乘_${startStation.name}_${intersection.name}_${endStation.name}_${startLine}_${endLine}`;
+                                    
+                                    // 检查是否已经处理过这个换乘组合
+                                    if (!processedIntersections.has(routeKey)) {
+                                        processedIntersections.add(routeKey);
+                                        
+                                        routeOptions.push({
+                                            id: routeId++,
+                                            name: `方案${routeId-1}: 一次换乘`,
+                                            description: `${startStation.name} → ${intersection.name} → ${endStation.name}`,
+                                            type: '一次换乘',
+                                            duration: `${duration}分钟`,
+                                            distance: `${distance.toFixed(1)}公里`,
+                                            transfers: '1次',
+                                            steps: [
+                                                {
+                                                    type: 'subway',
+                                                    title: `乘坐${startStation.lineName}`,
+                                                    detail: `从${startStation.name}站到${intersection.name}站，途经${segment1Count}站`
+                                                },
+                                                {
+                                                    type: 'transfer',
+                                                    title: `换乘${endStation.lineName}`,
+                                                    detail: `在${intersection.name}站换乘`
+                                                },
+                                                {
+                                                    type: 'subway',
+                                                    title: `乘坐${endStation.lineName}`,
+                                                    detail: `从${intersection.name}站到${endStation.name}站，途经${segment2Count}站`
+                                                }
+                                            ],
+                                            startLine: startLine,
+                                            endLine: endLine,
+                                            intersection: intersection.name,
+                                            stationCount: totalStations,
+                                            startStation: startStation,
+                                            endStation: endStation,
+                                            transferStations: [intersection.station1]
+                                        });
+                                    }
+                                }
                             }
-                        }
+                        });
                     }
                 }
             }
@@ -382,8 +394,24 @@ function generateAllRouteOptions(startStationName, endStationName) {
         });
     }
     
-    console.log(`生成了${routeOptions.length}个路线方案`);
-    return routeOptions;
+    const uniqueRoutes = [];
+    const seenDescriptions = new Set();
+    
+    routeOptions.forEach(route => {
+        if (!seenDescriptions.has(route.description)) {
+            seenDescriptions.add(route.description);
+            uniqueRoutes.push(route);
+        }
+    });
+    
+    // 重新分配ID
+    uniqueRoutes.forEach((route, index) => {
+        route.id = index + 1;
+        route.name = `方案${route.id}: ${route.type}`;
+    });
+    
+    console.log(`生成了${uniqueRoutes.length}个唯一路线方案`);
+    return uniqueRoutes;
 }
 
 /**

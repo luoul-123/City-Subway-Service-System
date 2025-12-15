@@ -408,12 +408,8 @@ document.addEventListener('DOMContentLoaded', function () {
             markerManager.clearRouteMarkers();
         }
         
-        // 不清除起点终点数据
-        // startSubwayStation 和 endSubwayStation 保持不变
-        
         // 清除当前选中的路线
         currentSelectedRoute = null;
-        allRouteOptions = [];
     }
 
     function initRoutePlanning() {
@@ -593,11 +589,18 @@ document.addEventListener('DOMContentLoaded', function () {
             optionItem.className = 'route-option-item';
             optionItem.dataset.routeId = route.id;
             
-            // 方案内容
+            // 提取方案编号：从 "方案1: 一次换乘" 中提取 "方案1"
+            let schemeName = route.name;
+            // 如果有冒号，取冒号前的部分
+            if (route.name.includes(':')) {
+                schemeName = route.name.split(':')[0].trim();
+            }
+            
+            // 方案内容 - 只显示方案编号和类型标签
             optionItem.innerHTML = `
                 <div class="option-header">
                     <div class="option-title">
-                        <span class="option-name">${route.name}</span>
+                        <span class="option-name">${schemeName}</span>
                         <span class="option-type">${route.type}</span>
                     </div>
                     <div class="option-stats">
@@ -632,7 +635,21 @@ document.addEventListener('DOMContentLoaded', function () {
         // 如果已经有当前选中的路线，先清除
         if (currentSelectedRoute && currentSelectedRoute.id !== route.id) {
             console.log('清除之前选中的路线:', currentSelectedRoute.name);
-            clearAllRouteMarkers();
+            
+            // 清除之前的路线标记
+            try {
+                clearRouteMarkers();
+            } catch (error) {
+                console.error('清除路线标记时出错:', error);
+                // 如果清除失败，尝试直接清除所有标记
+                if (markerManager && typeof markerManager.clearAllMarkers === 'function') {
+                    markerManager.clearAllMarkers();
+                }
+            }
+        } else if (currentSelectedRoute && currentSelectedRoute.id === route.id) {
+            // 如果点击的是当前已选中的路线，不需要重新绘制
+            console.log('当前路线已选中，跳过重新绘制');
+            return;
         }
         
         // 更新当前选中的路线
@@ -665,8 +682,13 @@ document.addEventListener('DOMContentLoaded', function () {
             
             // 确保清除完成后再显示新路线
             setTimeout(() => {
-                window.displayRouteOnMap(map, route, actualStartStation, actualEndStation);
-            }, 200);
+                try {
+                    window.displayRouteOnMap(map, route, actualStartStation, actualEndStation);
+                } catch (error) {
+                    console.error('显示路线时出错:', error);
+                    alert('无法显示路线，请稍后重试');
+                }
+            }, 100); // 缩短延迟时间
         }
     }
 
@@ -674,17 +696,16 @@ document.addEventListener('DOMContentLoaded', function () {
      * 显示路线详情
      */
     function showRouteDetails(route) {
-        const detailsContainer = document.getElementById('route-details');
+        const resultContainer = document.getElementById('route-result');
+        if (!resultContainer) return;
+        
+        // 查找或创建详情容器
+        let detailsContainer = document.getElementById('route-details');
         if (!detailsContainer) {
-            // 如果不存在，创建详情容器
-            const resultContainer = document.getElementById('route-result');
-            if (resultContainer) {
-                const detailsDiv = document.createElement('div');
-                detailsDiv.id = 'route-details';
-                detailsDiv.className = 'route-details';
-                resultContainer.appendChild(detailsDiv);
-            }
-            return;
+            detailsContainer = document.createElement('div');
+            detailsContainer.id = 'route-details';
+            detailsContainer.className = 'route-details';
+            resultContainer.appendChild(detailsContainer);
         }
         
         // 清空现有内容
@@ -701,21 +722,37 @@ document.addEventListener('DOMContentLoaded', function () {
         stepsContainer.className = 'route-steps';
         
         // 添加每个步骤
-        route.steps.forEach((step, index) => {
-            const stepEl = document.createElement('div');
-            stepEl.className = 'route-step';
-            stepEl.innerHTML = `
-                <div class="step-icon ${step.type}">
-                    <i class="fas ${step.type === 'subway' ? 'fa-subway' : 
-                                step.type === 'walk' ? 'fa-walking' : 'fa-exchange-alt'}"></i>
+        if (route.steps && route.steps.length > 0) {
+            route.steps.forEach((step, index) => {
+                const stepEl = document.createElement('div');
+                stepEl.className = 'route-step';
+                stepEl.innerHTML = `
+                    <div class="step-icon ${step.type}">
+                        <i class="fas ${step.type === 'subway' ? 'fa-subway' : 
+                                    step.type === 'walk' ? 'fa-walking' : 'fa-exchange-alt'}"></i>
+                    </div>
+                    <div class="step-content">
+                        <div class="step-title">${step.title}</div>
+                        <div class="step-detail">${step.detail}</div>
+                    </div>
+                `;
+                stepsContainer.appendChild(stepEl);
+            });
+        } else {
+            // 如果没有详细步骤，显示基本信息
+            const infoEl = document.createElement('div');
+            infoEl.className = 'route-step';
+            infoEl.innerHTML = `
+                <div class="step-icon info">
+                    <i class="fas fa-info-circle"></i>
                 </div>
                 <div class="step-content">
-                    <div class="step-title">${step.title}</div>
-                    <div class="step-detail">${step.detail}</div>
+                    <div class="step-title">路线信息</div>
+                    <div class="step-detail">${route.description || '暂无详细路线信息'}</div>
                 </div>
             `;
-            stepsContainer.appendChild(stepEl);
-        });
+            stepsContainer.appendChild(infoEl);
+        }
         
         detailsContainer.appendChild(stepsContainer);
     }

@@ -518,15 +518,6 @@ class MarkerManager {
     }
 
     /**
-     * 清除所有标记
-     */
-    clearAllMarkers() {
-        Object.keys(this.markers).forEach(key => {
-            this.removeMarker(key);
-        });
-    }
-
-    /**
      * 交换起点终点标记
      */
     async swapStartEndMarkers() {
@@ -1213,18 +1204,53 @@ class MarkerManager {
         });
         this.intersectionMarkers = [];
         
-        // 3. 清除路线连接线
-        try {
-            if (this.map.getLayer('route-line-layer')) {
-                this.map.removeLayer('route-line-layer');
+        // 3. 清除所有可能的路线图层
+        const layers = [
+            'route-line-layer',
+            'route-regular-stations-layer',
+            'route-transfer-stations-layer'
+        ];
+        
+        const sources = [
+            'route-line-source',
+            'route-regular-stations-source',
+            'route-transfer-stations-source'
+        ];
+        
+        // 先移除图层
+        layers.forEach(layerId => {
+            try {
+                if (this.map.getLayer(layerId)) {
+                    // 移除事件监听器
+                    try {
+                        this.map.off('click', layerId);
+                        this.map.off('mouseenter', layerId);
+                        this.map.off('mouseleave', layerId);
+                    } catch (e) {
+                        // 忽略移除事件监听器的错误
+                    }
+                    
+                    // 移除图层
+                    this.map.removeLayer(layerId);
+                }
+            } catch (error) {
+                // 图层可能不存在，忽略错误
             }
-            
-            if (this.map.getSource('route-line-source')) {
-                this.map.removeSource('route-line-source');
+        });
+        
+        // 再移除数据源
+        sources.forEach(sourceId => {
+            try {
+                if (this.map.getSource(sourceId)) {
+                    this.map.removeSource(sourceId);
+                }
+            } catch (error) {
+                // 数据源可能不存在，忽略错误
             }
-        } catch (error) {
-            console.error('清除路线连接线失败:', error);
-        }
+        });
+        
+        // 4. 清除路线数据
+        this.routeData = null;
         
         console.log('清除路线标记 - 完成');
     }
@@ -1336,19 +1362,25 @@ class MarkerManager {
      * 清除所有标记（包括路线标记）
      */
     clearAllMarkers() {
-        // 调用原有的清除方法
-        Object.keys(this.markers).forEach(key => {
-            this.removeMarker(key);
-        });
+        console.log('清除所有标记 - 开始');
         
         // 清除路线标记
         this.clearRouteMarkers();
         
-        // 清除用户位置标记
+        // 清除POI标记
+        Object.keys(this.markers).forEach(key => {
+            if (key !== 'userLocation') { // 保留用户位置标记
+                this.removeMarker(key);
+            }
+        });
+        
+        // 清除用户位置标记（如果需要）
         if (this.markers.userLocation) {
             this.markers.userLocation.remove();
             this.markers.userLocation = null;
         }
+        
+        console.log('清除所有标记 - 完成');
     }
 
     /**
