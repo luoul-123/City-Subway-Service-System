@@ -4,9 +4,9 @@
 
 
 /**
- * 处理站点数据去重（适配 xx_stop.json 的对象格式）
- * @param {Object} rawStops - 原始站点数据（nj_stop.json 格式）
- * @returns {Array} 去重后的站点数组
+ * 处理站点数据去重
+ * @param {Object} rawStops
+ * @returns {Array} 
  */
 window.uniqueStations = function(rawStops) {
     // 容错：如果传入的是数组，直接处理；如果是对象，先转换为数组

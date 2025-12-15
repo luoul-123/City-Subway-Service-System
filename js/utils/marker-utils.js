@@ -1,7 +1,3 @@
-/**
- * 标记管理工具函数
- */
-
 class MarkerManager {
     constructor(map, iconConfig = {}) {
         this.map = map;
@@ -1191,56 +1187,81 @@ class MarkerManager {
      * 清除路线标记
      */
     clearRouteMarkers() {
-        console.log('清除路线标记');
+        console.log('清除路线标记 - 开始');
         
-        // 移除图层
-        const layers = [
-            'route-regular-stations-layer',
-            'route-transfer-stations-layer',
-            'route-line-layer'
-        ];
-        
-        const sources = [
-            'route-regular-stations-source',
-            'route-transfer-stations-source',
-            'route-line-source'
-        ];
-        
-        layers.forEach(layerId => {
+        // 1. 清除通过 mapboxgl.Marker 创建的标记
+        this.routeMarkers.forEach(marker => {
             try {
-                if (this.map.getLayer(layerId)) {
-                    this.map.removeLayer(layerId);
+                if (marker && marker.remove) {
+                    marker.remove();
                 }
             } catch (error) {
-                console.error(`移除图层 ${layerId} 失败:`, error);
+                console.warn('清除标记时出错:', error);
             }
         });
+        this.routeMarkers = [];
         
-        sources.forEach(sourceId => {
+        // 2. 清除换乘站标记
+        this.intersectionMarkers.forEach(marker => {
             try {
-                if (this.map.getSource(sourceId)) {
-                    this.map.removeSource(sourceId);
+                if (marker && marker.remove) {
+                    marker.remove();
                 }
             } catch (error) {
-                console.error(`移除数据源 ${sourceId} 失败:`, error);
+                console.warn('清除换乘站标记时出错:', error);
             }
         });
+        this.intersectionMarkers = [];
         
-        // 清除旧的事件监听器
-        if (this.map.getLayer('route-regular-stations-layer')) {
-            this.map.off('click', 'route-regular-stations-layer');
-            this.map.off('mouseenter', 'route-regular-stations-layer');
-            this.map.off('mouseleave', 'route-regular-stations-layer');
+        // 3. 清除路线连接线
+        try {
+            if (this.map.getLayer('route-line-layer')) {
+                this.map.removeLayer('route-line-layer');
+            }
+            
+            if (this.map.getSource('route-line-source')) {
+                this.map.removeSource('route-line-source');
+            }
+        } catch (error) {
+            console.error('清除路线连接线失败:', error);
         }
         
-        if (this.map.getLayer('route-transfer-stations-layer')) {
-            this.map.off('click', 'route-transfer-stations-layer');
-            this.map.off('mouseenter', 'route-transfer-stations-layer');
-            this.map.off('mouseleave', 'route-transfer-stations-layer');
+        console.log('清除路线标记 - 完成');
+    }
+
+    /**
+     * 移除指定类型的标记
+     */
+    removeMarker(type) {
+        if (this.markers[type]) {
+            const { sourceId, layerId, labelSourceId, labelLayerId } = this.markers[type];
+            
+            // 移除图层
+            if (this.map.getLayer(layerId)) {
+                this.map.removeLayer(layerId);
+            }
+            if (this.map.getLayer(labelLayerId)) {
+                this.map.removeLayer(labelLayerId);
+            }
+            
+            // 移除数据源
+            if (this.map.getSource(sourceId)) {
+                this.map.removeSource(sourceId);
+            }
+            if (this.map.getSource(labelSourceId)) {
+                this.map.removeSource(labelSourceId);
+            }
+            
+            // 清除存储的标记数据
+            this.markers[type] = null;
+            this.markerData[type] = null;
+            
+            // 移除数据源和图层的引用
+            this.markerSources.delete(type);
+            this.markerLayers.delete(type);
+            this.labelSources.delete(type);
+            this.labelLayers.delete(type);
         }
-        
-        // 清除路线数据
-        this.routeData = null;
     }
     
     /**

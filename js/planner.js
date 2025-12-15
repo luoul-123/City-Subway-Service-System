@@ -301,7 +301,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // 更新输入框
         document.getElementById('start-station').value = station.name;
         
-        // 创建地铁站标记
+        // 清除之前的起点地铁站标记
+        if (markerManager && typeof markerManager.removeMarker === 'function') {
+            markerManager.removeMarker('startSubway');
+        }
+        
+        // 创建新的地铁站标记
         if (markerManager && typeof markerManager.createSubwayMarker === 'function') {
             try {
                 await markerManager.createSubwayMarker(station, 'start');
@@ -309,11 +314,6 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (error) {
                 console.error('创建起点地铁站标记失败:', error);
             }
-        }
-        
-        // 如果有终点站，检查是否可以规划路线
-        if (endSubwayStation) {
-            checkAndPlanRoute();
         }
     }
 
@@ -326,7 +326,12 @@ document.addEventListener('DOMContentLoaded', function () {
         // 更新输入框
         document.getElementById('end-station').value = station.name;
         
-        // 创建地铁站标记
+        // 清除之前的终点地铁站标记
+        if (markerManager && typeof markerManager.removeMarker === 'function') {
+            markerManager.removeMarker('endSubway');
+        }
+        
+        // 创建新的地铁站标记
         if (markerManager && typeof markerManager.createSubwayMarker === 'function') {
             try {
                 await markerManager.createSubwayMarker(station, 'end');
@@ -334,11 +339,6 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (error) {
                 console.error('创建终点地铁站标记失败:', error);
             }
-        }
-        
-        // 如果有起点站，检查是否可以规划路线
-        if (startSubwayStation) {
-            checkAndPlanRoute();
         }
     }
 
@@ -395,6 +395,27 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ========== 路线规划功能 ==========
+    /**
+     * 清除路线相关标记，但保留起点终点选择
+     */
+    function clearRouteMarkers() {
+        if (!markerManager) return;
+        
+        console.log('清除路线相关标记');
+        
+        // 只清除路线标记，不清除起点终点标记
+        if (typeof markerManager.clearRouteMarkers === 'function') {
+            markerManager.clearRouteMarkers();
+        }
+        
+        // 不清除起点终点数据
+        // startSubwayStation 和 endSubwayStation 保持不变
+        
+        // 清除当前选中的路线
+        currentSelectedRoute = null;
+        allRouteOptions = [];
+    }
+
     function initRoutePlanning() {
         const planBtn = document.getElementById('plan-route-btn');
         const closeResultBtn = document.getElementById('close-result');
@@ -411,33 +432,33 @@ document.addEventListener('DOMContentLoaded', function () {
         switchBtn.addEventListener('click', async function() {
             console.log('切换起点终点');
             
-            // 清除当前显示的路线标记
-            clearAllRouteMarkers();
+            // 交换地铁站数据
+            const tempStation = startSubwayStation;
+            startSubwayStation = endSubwayStation;
+            endSubwayStation = tempStation;
+            
+            // 清除路线标记
+            clearRouteMarkers();
             
             // 隐藏结果面板
             document.getElementById('result-panel').style.display = 'none';
-            
-            // 清空当前选中的路线
-            currentSelectedRoute = null;
             
             // 交换输入框的值
             const temp = startInput.value;
             startInput.value = endInput.value;
             endInput.value = temp;
             
-            // 交换地铁站数据
-            const tempStation = startSubwayStation;
-            startSubwayStation = endSubwayStation;
-            endSubwayStation = tempStation;
-            
-            // 交换标记
-            if (markerManager && typeof markerManager.swapStartEndMarkers === 'function') {
-                await markerManager.swapStartEndMarkers();
+            // 重新创建起点终点标记（如果有数据）
+            if (startSubwayStation) {
+                await setStartSubwayStation(startSubwayStation);
+            }
+            if (endSubwayStation) {
+                await setEndSubwayStation(endSubwayStation);
             }
             
             // 如果有两个站点，重新规划路线
             if (startSubwayStation && endSubwayStation) {
-                // 延迟一点时间，确保清除操作完成
+                // 延迟一点时间，确保标记创建完成
                 setTimeout(() => {
                     planSubwayRoute();
                 }, 300);
@@ -462,19 +483,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             
-            planSubwayRoute();
+            // 清除路线标记
+            clearRouteMarkers();
+            
+            // 延迟确保清除完成
+            setTimeout(() => {
+                planSubwayRoute();
+            }, 100);
         });
-    }
-
-    // ========== 路线规划功能 ==========
-    /**
-     * 检查并规划路线
-     */
-    function checkAndPlanRoute() {
-        if (startSubwayStation && endSubwayStation) {
-            // 自动规划
-            planSubwayRoute();
-        }
     }
 
     /**
@@ -486,13 +502,19 @@ document.addEventListener('DOMContentLoaded', function () {
             loadingOverlay.style.display = 'flex';
         }
         
+        // 验证起点终点是否已选择
+        if (!startSubwayStation || !endSubwayStation) {
+            alert('请先选择起点和终点地铁站');
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+            return;
+        }
+        
         console.log('开始规划地铁路线:', startSubwayStation.name, '->', endSubwayStation.name);
         
-        // 关键修改：在开始新规划前，彻底清除所有旧标记
-        clearAllRouteMarkers();
-        
-        // 清除当前选中的路线
-        currentSelectedRoute = null;
+        // 清除之前的路线标记（但保留起点终点标记）
+        clearRouteMarkers();
         
         // 使用 route-planner-utils.js 中的算法生成路线
         if (typeof window.generateAllRouteOptions === 'function') {
@@ -527,58 +549,6 @@ document.addEventListener('DOMContentLoaded', function () {
             // 显示结果面板
             document.getElementById('result-panel').style.display = 'block';
         }, 800);
-    }
-
-    /**
-     * 彻底清除所有路线标记
-     */
-    function clearAllRouteMarkers() {
-        console.log('彻底清除所有路线标记');
-        
-        // 1. 清除markerManager中的路线标记
-        if (window.markerManager && typeof window.markerManager.clearRouteMarkers === 'function') {
-            window.markerManager.clearRouteMarkers();
-        }
-        
-        // 2. 清除route-planner-utils中的路线标记
-        if (typeof window.clearRouteFromMap === 'function') {
-            window.clearRouteFromMap(map);
-        }
-        
-        // 3. 清除地图上所有可能的路线相关图层
-        const routeLayers = [
-            'route-layer',
-            'route-line-layer',
-            'route-regular-stations-layer',
-            'route-transfer-stations-layer'
-        ];
-        
-        const routeSources = [
-            'route-source',
-            'route-line-source',
-            'route-regular-stations-source',
-            'route-transfer-stations-source'
-        ];
-        
-        routeLayers.forEach(layerId => {
-            try {
-                if (map.getLayer(layerId)) {
-                    map.removeLayer(layerId);
-                }
-            } catch (error) {
-                // 忽略不存在的图层
-            }
-        });
-        
-        routeSources.forEach(sourceId => {
-            try {
-                if (map.getSource(sourceId)) {
-                    map.removeSource(sourceId);
-                }
-            } catch (error) {
-                // 忽略不存在的数据源
-            }
-        });
     }
 
     // ========== 结果渲染 ==========

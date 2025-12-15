@@ -1,3 +1,4 @@
+
 /**
  * 路径规划工具
  */
@@ -159,6 +160,24 @@ function findIntersectionStations(line1, line2) {
     }
     
     return intersections;
+}
+
+function addRouteStationsToMap(route) {
+    if (!markerManager) return;
+    
+    // 添加起点站标记
+    markerManager.createSubwayMarker(route.startStation, 'start');
+    
+    // 添加终点站标记
+    markerManager.createSubwayMarker(route.endStation, 'end');
+    
+    // 添加换乘站标记
+    route.transfers.forEach(transfer => {
+        const marker = markerManager.createTransferMarker(transfer);
+        if (marker) {
+            markerManager.intersectionMarkers.push(marker);
+        }
+    });
 }
 
 /**
