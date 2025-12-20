@@ -6,7 +6,7 @@
 1) conda create -n metro python=3.11 -y && conda activate metro
 2) pip install -r backend/requirements.txt
 3) cd backend && python app.py
-前端调试：直接用浏览器打开根目录下的 login.html / index.html，API 基地址 http://127.0.0.1:5000
+前端调试：直接用浏览器打开 frontend 目录下的 login.html / index.html，API 基地址 http://127.0.0.1:5000
 """
 
 import os

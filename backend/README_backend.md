@@ -35,3 +35,7 @@ python app.py
 - `app.py`：Flask 主程序，暴露用户相关 API，并开启 CORS，便于静态页调用。
 - `db.py` ：数据库连接封装，使用 `.env` 读取连接信息。
 - `requirements.txt`：依赖列表（flask、flask-cors、psycopg2-binary、python-dotenv、werkzeug）。
+
+## 前端文件位置
+- 所有前端文件（HTML、CSS、JavaScript、图片、数据等）位于项目根目录的 `frontend/` 文件夹中
+- 打开前端页面：直接用浏览器打开 `frontend/index.html` 或 `frontend/login.html`

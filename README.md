@@ -4,6 +4,47 @@
 
 - 地理信息服务作业4（12月10日版）
 
+## 项目结构
+
+```
+城市地铁服务系统1217/
+├── frontend/          # 前端文件（HTML、CSS、JS、图片、数据）
+│   ├── index.html    # 首页
+│   ├── login.html    # 登录页
+│   ├── css/          # 样式文件
+│   ├── js/           # JavaScript文件
+│   ├── images/       # 图片资源
+│   ├── data/         # 地铁数据（GeoJSON等）
+│   └── iconfont/     # 图标字体
+├── backend/          # 后端文件（Flask API）
+│   ├── app.py        # Flask主程序
+│   ├── db.py         # 数据库连接
+│   └── requirements.txt
+├── README.md         # 项目说明
+└── CONTRIBUTING.md   # 贡献指南
+```
+
+## 快速开始
+
+### 前端
+直接用浏览器打开 `frontend/index.html` 即可访问系统首页
+
+### 后端
+详见 `backend/README_backend.md`
+
+### 数据入库（可选）
+如需将地铁和POI数据导入PostgreSQL数据库：
+1. 安装PostgreSQL + PostGIS扩展
+2. 执行 `backend/create_metro_tables.sql` 创建表结构
+3. 运行 `python backend/import_metro_data.py` 导入数据
+4. 详细步骤见 `backend/快速入门-数据入库.md`
+
+**数据入库优势：**
+- ✅ 支持PostGIS空间查询（如附近POI搜索）
+- ✅ 数据统一管理，便于更新维护
+- ✅ 后端API提供数据，提升性能
+- ✅ 支持复杂的数据分析和统计
+
 ## 分工
 
 ### luo

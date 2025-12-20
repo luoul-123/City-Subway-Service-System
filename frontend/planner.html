@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>路线规划 - 城市地铁服务系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet'>
+    <link rel="stylesheet" href="./css/planner.css">
+    <!-- 高德地图API -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=62a52b51785288c7f0166729b5ccdb23&plugin=AMap.Geolocation,AMap.Geocoder"></script>
+</head>
+<body>
+    <!-- 导航容器 -->
+    <div id="nav-container"></div>
+
+    <!-- 页面主体内容 -->
+    <main>
+        <div class="map-info-container">
+            <!-- 地图容器 -->
+            <div class="map-container">
+                <div id="planner-map" class="map"></div>
+                
+                <!-- 城市切换区域 -->
+                <div class="city-switch-area">
+                    <div class="switch-label">
+                        <i class="fas fa-exchange-alt"></i> 切换城市
+                    </div>
+                    <div class="city-buttons">
+                        <button class="city-btn" data-city="bj">北京</button>
+                        <button class="city-btn active" data-city="nj">南京</button>
+                        <button class="city-btn" data-city="sh">上海</button>
+                        <button class="city-btn" data-city="wh">武汉</button>
+                    </div>
+                    <div class="current-city">当前城市：南京</div>
+                </div>
+            </div>
+
+            <!-- 右侧规划面板 -->
+            <div class="info-panel">
+                <!-- 标题 -->
+                <div class="panel-header">
+                    <h2><i class="fas fa-route"></i> 路线规划</h2>
+                    <p class="panel-subtitle">输入起点和终点，获取所有地铁出行方案</p>
+                </div>
+
+                <!-- 路线查询表单 -->
+                <div class="route-form">
+                    <!-- 起点输入组（包含定位按钮） -->
+                    <div class="form-group with-location-btn">
+                        <label for="start-station"><i class="fas fa-location-arrow"></i> 起点</label>
+                        <div class="input-with-btn">
+                            <input type="text" id="start-station" placeholder="输入地铁站名或地址">
+                            <button id="locate-btn" class="location-btn inline-location-btn" title="定位到当前位置">
+                                <i class="fas fa-location-arrow"></i>
+                            </button>
+                        </div>
+                        <!-- 自动完成下拉框将动态添加 -->
+                        <div id="location-info" class="location-info" style="display: none;"></div>
+                    </div>
+                    
+                    <!-- 切换起点终点按钮 -->
+                    <div class="switch-start-end">
+                        <button id="switch-start-end-btn" class="switch-btn">
+                            <i class="fas fa-exchange-alt"></i> 切换起点终点
+                        </button>
+                    </div>
+                    
+                    <!-- 终点输入组 -->
+                    <div class="form-group">
+                        <label for="end-station"><i class="fas fa-map-marker-alt"></i> 终点</label>
+                        <input type="text" id="end-station" placeholder="输入地铁站名或地址">
+                    </div>
+
+                    <button id="plan-route-btn" class="primary-btn">
+                        <i class="fas fa-search"></i> 规划路线
+                    </button>
+                </div>
+
+                <!-- 路线结果面板 -->
+                <div class="result-panel" id="result-panel">
+                    <div class="result-header">
+                        <h3><i class="fas fa-list-alt"></i> 路线规划结果</h3>
+                        <button class="close-btn" id="close-result"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="result-content" id="route-result">
+                        <!-- 路线结果将在这里显示 -->
+                        <div class="no-result">
+                            <i class="fas fa-route"></i>
+                            <p>请输入起点和终点进行路线规划</p>
+                        </div>
+                    </div>
+                    <div class="result-stats">
+                        <div class="stat-item">
+                            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="duration">-</div>
+                                <div class="stat-label">预计时间</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon"><i class="fas fa-subway"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="distance">-</div>
+                                <div class="stat-label">总里程</div>
+                            </div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon"><i class="fas fa-exchange-alt"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="transfers">-</div>
+                                <div class="stat-label">换乘次数</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 加载提示 -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p id="loading-text">加载数据中...</p>
+    </div>
+
+    <script src="./js/nav.js"></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-language/v1.0.0/mapbox-gl-language.js'></script>
+    <script src="https://unpkg.com/gcoord/dist/gcoord.global.prod.js"></script>
+    <script src="js/utils/coordinate-utils.js"></script>
+    <script src="js/utils/map-utils.js"></script>
+    <script src="js/utils/data-utils.js"></script>
+    <script src="js/utils/api-data-utils.js"></script>
+    <script src="js/utils/subway-utils.js"></script>
+    <script src="js/utils/marker-utils.js"></script>
+    <script src="js/utils/route-planner-utils.js"></script>
+    <script src="js/utils/ui-utils.js"></script>
+    <script src="js/utils/autocomplete-utils.js"></script>
+    <script src="js/planner.js"></script>
+</body>
+</html>
