@@ -20,8 +20,8 @@
         </div>
         <div class="nav-links">
             <a href="index.html">返回首页</a>
-            <a href="#">服务公告</a>
-            <a href="#">联系我们</a>
+            <a href="#" id="announcement-link">服务公告</a>
+            <a href="#" id="contact-link">联系我们</a>
         </div>
     </div>
 
@@ -88,6 +88,116 @@
             </div>
         </div>
     </div>
+
+    <!-- 系统公告弹窗 -->
+    <div id="announcement-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>系统公告（最近更新）</h3>
+                <button class="modal-close" id="close-announcement-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="announcement-loading" style="text-align:center; padding:20px;">
+                    <i class="fas fa-spinner fa-spin"></i> 加载更新记录中...
+                </div>
+                <div id="announcement-list" style="display:none;"></div>
+                <div id="announcement-error" class="form-error" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 联系我们弹窗 -->
+    <div id="contact-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>联系我们</h3>
+                <button class="modal-close" id="close-contact-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="contact-container">
+                    <!-- 创作者信息 -->
+                    <div class="creator-info">
+                        <div class="creator-header">
+                            <i class="fas fa-users"></i>
+                            <h4>创作者信息</h4>
+                        </div>
+                        
+                        <div class="creators-list">
+                            <!-- 第一位创作者 -->
+                            <div class="creator-item">
+                                <div class="creator-name">Luo Ritong</div>
+                                <div class="creator-detail">
+                                    <div class="email-with-copy">
+                                        <i class="fas fa-envelope"></i>
+                                        <span class="email-text">3216527594@qq.com</span>
+                                        <button class="copy-email-btn" id="copy-first-email">
+                                            <i class="fas fa-copy"></i> 复制
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 第二位创作者 -->
+                            <div class="creator-item">
+                                <div class="creator-name">Lu Yan</div>
+                                <div class="creator-detail">
+                                    <i class="fas fa-envelope"></i>
+                                    <span>10220524@njnu.edu.cn</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 第三位创作者 -->
+                            <div class="creator-item">
+                                <div class="creator-name">Zhu Jimeng</div>
+                                <div class="creator-detail">
+                                    <i class="fas fa-envelope"></i>
+                                    <span>10230207@njnu.edu.cn</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="github-info">
+                            <div class="github-item">
+                                <i class="fab fa-github"></i>
+                                <span>项目仓库：</span>
+                                <a href="https://github.com/luoul-123/City-Subway-Service-System" target="_blank">
+                                    City-Subway-Service-System
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 问题反馈部分 -->
+                    <div class="feedback-section">
+                        <div class="feedback-header">
+                            <i class="fas fa-comment-dots"></i>
+                            <h4>问题反馈</h4>
+                        </div>
+                        <p class="feedback-description">
+                            如果您在使用过程中遇到问题或有改进建议，请点击下方按钮前往GitHub仓库提交Issue。
+                            我们会及时查看并回复。
+                        </p>
+                        <div class="feedback-buttons">
+                            <a href="https://github.com/luoul-123/City-Subway-Service-System/issues" 
+                            target="_blank" 
+                            class="github-issue-btn">
+                                <i class="fab fa-github"></i> 提交问题反馈
+                            </a>
+                            <div class="email-note">
+                                <i class="fas fa-info-circle"></i>
+                                <span>也可通过上方邮箱直接联系我们</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- 复制成功提示（放在弹窗外面） -->
+<div id="copy-success" class="copy-success" style="display:none;">
+    <i class="fas fa-check-circle"></i> 邮箱地址已复制到剪贴板
+</div>
 
     <!-- 页脚 -->
     <div class="footer">

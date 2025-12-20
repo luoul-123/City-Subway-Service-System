@@ -293,4 +293,230 @@ document.addEventListener('DOMContentLoaded', function() {
             forgotError.textContent = msg;
         }
     }
-});
+
+    // 系统公告功能
+    const announcementLink = document.getElementById('announcement-link');
+    const announcementModal = document.getElementById('announcement-modal');
+    const closeAnnouncementModal = document.getElementById('close-announcement-modal');
+    const announcementList = document.getElementById('announcement-list');
+    const announcementLoading = document.getElementById('announcement-loading');
+    const announcementError = document.getElementById('announcement-error');
+
+    // GitHub API 地址（获取commit记录）
+    const GITHUB_API = 'https://api.github.com/repos/luoul-123/City-Subway-Service-System/commits';
+
+    if (announcementLink) {
+        announcementLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            openAnnouncementModal();
+        });
+    }
+
+    if (closeAnnouncementModal) {
+        closeAnnouncementModal.addEventListener('click', () => {
+            announcementModal.style.display = 'none';
+        });
+    }
+
+    if (announcementModal) {
+        announcementModal.addEventListener('click', (e) => {
+            if (e.target === announcementModal) {
+                announcementModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 打开公告弹窗并加载数据
+    async function openAnnouncementModal() {
+        if (!announcementModal || !announcementList || !announcementLoading) return;
+
+        // 显示弹窗和加载状态
+        announcementModal.style.display = 'flex';
+        announcementLoading.style.display = 'block';
+        announcementList.style.display = 'none';
+        announcementError.style.display = 'none';
+
+        try {
+            // 调用GitHub API获取最近10条commit记录
+            const response = await fetch(GITHUB_API, {
+                headers: {
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'CitySubwayServiceSystem' // GitHub API要求必须有User-Agent
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('获取更新记录失败，请稍后重试');
+            }
+
+            const commits = await response.json();
+            renderAnnouncements(commits.slice(0, 5)); // 只显示最近10条
+        } catch (err) {
+            announcementError.textContent = err.message;
+            announcementError.style.display = 'block';
+        } finally {
+            announcementLoading.style.display = 'none';
+        }
+    }
+
+    // 渲染公告列表
+    function renderAnnouncements(commits) {
+        if (!announcementList) return;
+
+        if (!commits || commits.length === 0) {
+            announcementList.innerHTML = `
+                <div class="announcement-empty">
+                    <i class="fas fa-file-alt"></i>
+                    <p>暂无更新记录</p>
+                </div>
+            `;
+            announcementList.style.display = 'block';
+            return;
+        }
+
+        // 格式化提交时间
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        };
+
+        // 生成公告HTML
+        const html = commits.map(commit => `
+            <div class="announcement-item">
+                <div class="announcement-date">
+                    <span>${formatDate(commit.commit.committer.date)}</span>
+                    <span class="announcement-author">${commit.commit.committer.name}</span>
+                </div>
+                <div class="announcement-message">${commit.commit.message}</div>
+            </div>
+        `).join('');
+
+        announcementList.innerHTML = html;
+        announcementList.style.display = 'block';
+    }
+
+    // 联系我们功能
+    const contactLink = document.getElementById('contact-link');
+    const contactModal = document.getElementById('contact-modal');
+    const closeContactModal = document.getElementById('close-contact-modal');
+
+    // 打开联系我们弹窗
+    if (contactLink) {
+        contactLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            contactModal.style.display = 'flex';
+        });
+    }
+
+    // 关闭弹窗
+    if (closeContactModal) {
+        closeContactModal.addEventListener('click', () => {
+            contactModal.style.display = 'none';
+        });
+    }
+
+    if (contactModal) {
+        contactModal.addEventListener('click', (e) => {
+            if (e.target === contactModal) {
+                contactModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 复制邮箱功能
+    const copyEmailBtn = document.getElementById('copy-first-email');
+    const copySuccess = document.getElementById('copy-success');
+
+    if (copyEmailBtn) {
+        copyEmailBtn.addEventListener('click', async () => {
+            const email = '3216527594@qq.com'; // 固定邮箱地址
+            
+            // 保存原始按钮状态
+            const originalHTML = copyEmailBtn.innerHTML;
+            
+            try {
+                // 使用Clipboard API复制文本
+                await navigator.clipboard.writeText(email);
+                
+                // 复制成功，更新按钮状态
+                copyEmailBtn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                copyEmailBtn.style.background = 'rgba(76, 175, 80, 0.2)';
+                copyEmailBtn.style.color = '#2e7d32';
+                copyEmailBtn.style.borderColor = 'rgba(76, 175, 80, 0.3)';
+                
+                // 显示成功提示
+                if (copySuccess) {
+                    copySuccess.style.display = 'flex';
+                    
+                    // 3秒后自动隐藏提示
+                    setTimeout(() => {
+                        copySuccess.style.display = 'none';
+                    }, 3000);
+                }
+                
+                // 1.5秒后恢复按钮原状
+                setTimeout(() => {
+                    copyEmailBtn.innerHTML = originalHTML;
+                    copyEmailBtn.style.background = '';
+                    copyEmailBtn.style.color = '';
+                    copyEmailBtn.style.borderColor = '';
+                }, 1500);
+                
+            } catch (err) {
+                console.error('复制失败:', err);
+                
+                // 降级方案：使用传统方法
+                const textArea = document.createElement('textarea');
+                textArea.value = email;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-9999px';
+                textArea.style.top = '0';
+                document.body.appendChild(textArea);
+                
+                try {
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    
+                    if (successful) {
+                        // 复制成功
+                        copyEmailBtn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                        copyEmailBtn.style.background = 'rgba(76, 175, 80, 0.2)';
+                        copyEmailBtn.style.color = '#2e7d32';
+                        copyEmailBtn.style.borderColor = 'rgba(76, 175, 80, 0.3)';
+                        
+                        // 显示成功提示
+                        if (copySuccess) {
+                            copySuccess.style.display = 'flex';
+                            
+                            // 3秒后自动隐藏提示
+                            setTimeout(() => {
+                                copySuccess.style.display = 'none';
+                            }, 3000);
+                        }
+                        
+                        // 1.5秒后恢复按钮原状
+                        setTimeout(() => {
+                            copyEmailBtn.innerHTML = originalHTML;
+                            copyEmailBtn.style.background = '';
+                            copyEmailBtn.style.color = '';
+                            copyEmailBtn.style.borderColor = '';
+                        }, 1500);
+                    } else {
+                        alert('复制失败，请手动复制邮箱地址：' + email);
+                    }
+                } catch (err2) {
+                    alert('复制失败，请手动复制邮箱地址：' + email);
+                } finally {
+                    document.body.removeChild(textArea);
+                }
+            }
+        });
+    }
+}); 
